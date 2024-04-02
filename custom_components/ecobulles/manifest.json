@@ -1,5 +1,6 @@
 {
   "domain": "ecobulles",
+  "version": "0.1.0",
   "name": "Ecobulles",
   "codeowners": [
     "@jul-fls"
