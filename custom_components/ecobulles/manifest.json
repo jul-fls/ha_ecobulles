@@ -1,0 +1,15 @@
+{
+  "domain": "ecobulles",
+  "name": "Ecobulles",
+  "codeowners": [
+    "@jul-fls"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/ecobulles",
+  "homekit": {},
+  "iot_class": "cloud_polling",
+  "requirements": ["aiohttp>=3.6.1"],
+  "ssdp": [],
+  "zeroconf": []
+}
