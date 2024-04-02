@@ -29,7 +29,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
         vol.Required("co2_bottle_weight", default=10): int,
-        vol.Required("co2_injection_rate", default=10): int,
+        # vol.Required("co2_injection_rate", default=10): int,
     }
 )
 
@@ -246,10 +246,10 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                     "co2_bottle_weight",
                     default=self.config_entry.data["co2_bottle_weight"],
                 ): int,
-                vol.Reqquired(
-                    "co2_injection_rate",
-                    default=self.config_entry.data["co2_injection_rate"],
-                ): int,
+                # vol.Reqquired(
+                #     "co2_injection_rate",
+                #     default=self.config_entry.data["co2_injection_rate"],
+                # ): int,
             }
         )
         return self.async_show_form(step_id="init", data_schema=options_schema)
