@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.ecobulles.sensor import (
-    WaterAndCo2UsageCoordinator,
-    WaterUsageSensor,
-    CO2UsageSensor,
-)
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
