@@ -89,43 +89,14 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                     device_info = {
                         "eco_ref": info.get("eco_ref"),
                         "name": device_info_raw.get("data").get("boite").get("name"),
-                        "install_date": (
-                            device_info_raw.get("data")
-                            .get("boite")
-                            .get("installdate")
-                            .get("date")
-                        ).replace(" ", "T"),
-                        "firmware_version": device_info_raw.get("data")
-                        .get("boite")
-                        .get("firm_ver"),
-                        "num_serie": device_info_raw.get("data")
-                        .get("boite")
-                        .get("num_serie"),
-                        "last_date_receive": (
-                            device_info_raw.get("data")
-                            .get("boite")
-                            .get("lastdatereceive")
-                        ).replace(" ", "T"),
-                        "activated": device_info_raw.get("data")
-                        .get("boite")
-                        .get("activated"),
-                        "locked": device_info_raw.get("data")
-                        .get("boite")
-                        .get("locked"),
-                        "suspended": device_info_raw.get("data")
-                        .get("boite")
-                        .get("suspended"),
-                        "suspended_time": device_info_raw.get("data")
-                        .get("boite")
-                        .get("suspended_time"),
-                        "suspended_date": (
-                            device_info_raw.get("data")
-                            .get("boite")
-                            .get("suspended_date")
-                        ).replace(" ", "T"),
-                        "last_alert": device_info_raw.get("data")
-                        .get("boite")
-                        .get("last_alert"),
+                        "install_date": (device_info_raw.get("data").get("boite").get("installdate").get("date")).replace(" ", "T"),
+                        "firmware_version": device_info_raw.get("data").get("boite").get("firm_ver"),"num_serie": device_info_raw.get("data").get("boite").get("num_serie"),
+                        "last_date_receive": (device_info_raw.get("data").get("boite").get("lastdatereceive")).replace(" ", "T"),"activated": device_info_raw.get("data").get("boite").get("activated"),
+                        "locked": device_info_raw.get("data").get("boite").get("locked"),
+                        "suspended": device_info_raw.get("data").get("boite").get("suspended"),
+                        "suspended_time": device_info_raw.get("data").get("boite").get("suspended_time"),
+                        "suspended_date": (device_info_raw.get("data").get("boite").get("suspended_date")).replace(" ", "T"),
+                        "last_alert": device_info_raw.get("data").get("boite").get("last_alert"),
                     }
                     entry_data = {**user_input, **info, **device_info}
                     # Ensure you're not storing 'title' in the entry data, as it was used just for entry naming

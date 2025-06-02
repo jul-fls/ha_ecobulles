@@ -7,12 +7,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 
 from .const import DOMAIN
 
 # TODO List the platforms that you want to support.
 # For your initial PR, limit it to 1 platform.
-PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 # PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.SWITCH]
 
 
@@ -40,6 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         model="Ecobulles",
         sw_version=firmware_version,
         serial_number=num_serie,
+        connections={(CONNECTION_NETWORK_MAC, eco_ref)}
     )
 
     # Store additional device-specific information in hass.data for internal use
