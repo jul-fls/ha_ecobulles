@@ -2,7 +2,11 @@
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from custom_components.ecobulles.const import DOMAIN
+
+pytestmark = pytest.mark.asyncio
 
 
 async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) -> None:
