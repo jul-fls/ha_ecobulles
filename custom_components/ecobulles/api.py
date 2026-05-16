@@ -1,117 +1,110 @@
-from datetime import datetime, timedelta
-from homeassistant.util.dt import now as hass_now
-import aiohttp
+"""API client for the Ecobulles cloud service."""
+
+from __future__ import annotations
+
 import hashlib
 import logging
+from typing import Any
+
+from aiohttp import ClientSession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util.dt import now as hass_now
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class EcobullesClient:
+    """Small async client for the Ecobulles mobile API."""
+
     BASE_URL = "https://ecobulles.agom.net/cmd/"
     USER_AGENT = "Ecobulles"
+    REGISTRATION_ID = (
+        "cI7TFH55eX4:APA91bE-DyQ1QgCIcO2BBfIL1MiAl_afxm9t4o4jQIyXazceonlcmqk"
+        "UF7BHwZ4J_r06EpVxOY0n8bOIm-0a7VpjItHLBM61-fdEBj4Yy_gR5dyDbyvGtI7"
+        "YbFHwqfGTwN-eg_4kyKy4"
+    )
+    SAND = "B3A2F41213"
 
-    def hash_password(self, password):
-        """Hash the password using SHA-1."""
+    def __init__(self, hass=None, session: ClientSession | None = None) -> None:
+        """Initialize the client."""
+        self._session = session or (
+            async_get_clientsession(hass) if hass is not None else None
+        )
+
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """Hash the password using SHA-1 as expected by the legacy API."""
         return hashlib.sha1(password.encode("utf-8")).hexdigest()
 
-    async def authenticate(self, email, password):
+    async def _post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+        """Post form data and decode a JSON response."""
+        if self._session is None:
+            raise RuntimeError("EcobullesClient requires a Home Assistant session")
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": self.USER_AGENT,
+        }
+        async with self._session.post(
+            f"{self.BASE_URL}{endpoint}", data=payload, headers=headers
+        ) as response:
+            if response.status != 200:
+                _LOGGER.warning("Ecobulles request failed for %s: %s", endpoint, response.status)
+                return None
+            return await response.json(content_type=None)
+
+    async def authenticate(self, email: str, password: str):
         """Authenticate with the Ecobulles API."""
-        async with aiohttp.ClientSession() as session:
-            hashed_password = self.hash_password(password)
-            payload = {
+        content = await self._post(
+            "loginAppUserCo2.php",
+            {
                 "email": email,
-                "password": hashed_password,
-                "registrationId": "cI7TFH55eX4:APA91bE-DyQ1QgCIcO2BBfIL1MiAl_afxm9t4o4jQIyXazceonlcmqkUF7BHwZ4J_r06EpVxOY0n8bOIm-0a7VpjItHLBM61-fdEBj4Yy_gR5dyDbyvGtI7YbFHwqfGTwN-eg_4kyKy4",
-                "sand": "B3A2F41213",
-            }
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": self.USER_AGENT,
-            }
-            async with session.post(
-                f"{self.BASE_URL}loginAppUserCo2.php", data=payload, headers=headers
-            ) as response:
-                if response.status == 200:
-                    content = await response.json(content_type=None)
-                    auth_status = int(content.get("status"))
-                    if auth_status == 1:
-                        user_id = content.get("data").get("userid")
-                        eco_ref = content.get("data").get("eco_ref")
-                        boitier_name = (
-                            content.get("data")
-                            .get("conso")
-                            .get("boite")
-                            .get("name")
-                            .strip()
-                        )
-                        return True, user_id, eco_ref, boitier_name
-                return False, None, None, None
+                "password": self.hash_password(password),
+                "registrationId": self.REGISTRATION_ID,
+                "sand": self.SAND,
+            },
+        )
+        if int((content or {}).get("status", 0)) != 1:
+            return False, None, None, None
 
-    async def getDeviceInfo(self, eco_ref):
-        """Fetch some data from the Ecobulles API after authentication."""
-        payload = {"eco_ref": eco_ref}
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": self.USER_AGENT,
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.BASE_URL}getAppUserCo2.php", data=payload, headers=headers
-            ) as response:
-                if response.status == 200:
-                    data = await response.json(content_type=None)
-                    return data
-                return None
+        data = content["data"]
+        return (
+            True,
+            data.get("userid"),
+            data.get("eco_ref"),
+            data.get("conso", {}).get("boite", {}).get("name", "").strip(),
+        )
 
-    async def getTotalWaterAndCo2Usage(self, eco_ref, hass):
-        """Fetch CO2 usage data from the Ecobulles API."""
+    async def get_device_info(self, eco_ref: str) -> dict[str, Any] | None:
+        """Fetch device metadata."""
+        return await self._post("getAppUserCo2.php", {"eco_ref": eco_ref})
 
-        # Cumulative data: from a fixed point in time (e.g., 2000-01-01) to now
-        startdate = "2000-01-01 00:00:00"
+    async def get_total_water_and_co2_usage(self, eco_ref: str) -> dict[str, Any] | None:
+        """Fetch cumulative usage data exposed by the Ecobulles API."""
         current_time = hass_now()
-        stopdate = current_time.strftime("%Y-%m-%d %H:00:00")
+        data_raw = await self._post(
+            "getConsoBoiteItemAppFilter.php",
+            {
+                "eco_ref": eco_ref,
+                "eau": "1",
+                "startdate": "2000-01-01 00:00:00",
+                "stopdate": current_time.strftime("%Y-%m-%d %H:00:00"),
+            },
+        )
+        if data_raw is None:
+            return None
 
-        payload = {
-            "eco_ref": eco_ref,
-            "eau": "1",
-            "startdate": startdate,
-            "stopdate": stopdate,
+        infoconso = data_raw.get("data", {}).get("infoconso", {})
+        graphs = infoconso.get("graph", [])
+        last_updated = None
+        if graphs:
+            last_graph_entry = graphs[-1]
+            raw_date = last_graph_entry.get("date")
+            if raw_date:
+                last_updated = raw_date.replace(" ", "T").replace("/", "-")
+
+        return {
+            "total_gas": int(infoconso.get("total_gas") or 0),
+            "total_eau": int(infoconso.get("total_eau") or 0),
+            "last_updated": last_updated,
         }
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": self.USER_AGENT,
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.BASE_URL}getConsoBoiteItemAppFilter.php",
-                data=payload,
-                headers=headers,
-            ) as response:
-                if response.status == 200:
-                    data_raw = await response.json(content_type=None)
-
-                    infoconso = data_raw.get("data", {}).get("infoconso", {})
-                    graphs = infoconso.get("graph", [])
-                    last_updated = None
-                    if graphs:
-                        last_graph_entry = graphs[-1]
-                        last_updated = (
-                            last_graph_entry.get("date")
-                            .replace(" ", "T")
-                            .replace("/", "-")
-                        )
-
-                    total_gas = infoconso.get("total_gas")
-                    total_eau = infoconso.get("total_eau")
-
-                    data = {
-                        "total_gas": int(total_gas) if total_gas is not None else 0,
-                        "total_eau": int(total_eau) if total_eau is not None else 0,
-                        "last_updated": last_updated,
-                    }
-                    return data
-
-                _LOGGER.critical(">>> Requête échouée, status : %s", response.status)
-                return None

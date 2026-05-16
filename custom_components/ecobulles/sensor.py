@@ -1,302 +1,276 @@
+"""Sensor platform for Ecobulles."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
 from datetime import timedelta
-import datetime
 import logging
+from typing import Any, Callable
 
 import async_timeout
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfVolume
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from homeassistant.components.sensor import SensorEntity
 
-# import liters
-from homeassistant.const import UnitOfVolume, UnitOfMass, PERCENTAGE
-from homeassistant.util.dt import as_local, now as hass_now
-
-from .const import DOMAIN
 from .api import EcobullesClient
-
+from .const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
+from .water_usage import WaterUsageState
 
 _LOGGER = logging.getLogger(__name__)
+STORAGE_VERSION = 1
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
-    """Set up water usage sensor from a config entry."""
-    try:
-        api = EcobullesClient()
-        eco_ref = entry.data.get("eco_ref")
-        co2_bottle_weight = entry.data.get("co2_bottle_weight")
+@dataclass(frozen=True, kw_only=True)
+class EcobullesSensorDescription(SensorEntityDescription):
+    """Describe an Ecobulles sensor."""
 
-        coordinator = WaterAndCo2UsageCoordinator(hass, api, eco_ref)
-
-        try:
-            await coordinator.async_config_entry_first_refresh()
-        except Exception as e:
-            _LOGGER.error("Erreur lors du premier rafraîchissement de données Ecobulles: %s", e)
-            return
-
-        async_add_entities([
-            WaterUsageSensor(coordinator, eco_ref),
-            CO2UsageSensor(coordinator, eco_ref, co2_bottle_weight),
-            InstallDateSensor(coordinator, eco_ref),
-            LastDateReceiveSensor(coordinator, eco_ref),
-            ActivatedSensor(coordinator, eco_ref),
-            LockedSensor(coordinator, eco_ref),
-            ActivatedSensor(coordinator, eco_ref),
-            SuspendedSensor(coordinator, eco_ref),
-        ], True)
-    except Exception as outer:
-        _LOGGER.exception("Erreur lors de l'installation des capteurs Ecobulles: %s", outer)
-        return
+    value_fn: Callable[[dict[str, Any]], Any]
 
 
+WATER_SENSORS: tuple[EcobullesSensorDescription, ...] = (
+    EcobullesSensorDescription(
+        key="total_water_usage",
+        name="Ecobulles Water Usage",
+        native_unit_of_measurement=UnitOfVolume.LITERS,
+        device_class=SensorDeviceClass.WATER,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda data: data["cycle_water_liters"],
+    ),
+    EcobullesSensorDescription(
+        key="water_usage_completed_bottles",
+        name="Ecobulles Water Usage Completed CO2 Bottles",
+        native_unit_of_measurement=UnitOfVolume.LITERS,
+        device_class=SensorDeviceClass.WATER,
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: data["completed_cycles_liters"],
+    ),
+    EcobullesSensorDescription(
+        key="water_usage_total",
+        name="Ecobulles Water Usage Total",
+        native_unit_of_measurement=UnitOfVolume.LITERS,
+        device_class=SensorDeviceClass.WATER,
+        state_class=SensorStateClass.TOTAL,
+        value_fn=lambda data: data["total_water_liters"],
+    ),
+)
 
-class WaterAndCo2UsageCoordinator(DataUpdateCoordinator):
-    """Coordinator for fetching water usage data."""
+RAW_CO2_SENSOR = EcobullesSensorDescription(
+    key="raw_co2_value",
+    name="Ecobulles Raw CO2 Value",
+    state_class=SensorStateClass.MEASUREMENT,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    value_fn=lambda data: data.get("total_gas"),
+)
 
-    def __init__(self, hass, api, eco_ref):
-        """Initialize the water usage coordinator."""
+DIAGNOSTIC_SENSORS: tuple[EcobullesSensorDescription, ...] = (
+    EcobullesSensorDescription(
+        key="install_date",
+        name="Ecobulles Install Date",
+        device_class=SensorDeviceClass.DATE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("install_date"),
+    ),
+    EcobullesSensorDescription(
+        key="last_date_receive",
+        name="Ecobulles Last Date Receive",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("last_date_receive"),
+    ),
+    EcobullesSensorDescription(
+        key="activated",
+        name="Ecobulles Activated",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("activated"),
+    ),
+    EcobullesSensorDescription(
+        key="locked",
+        name="Ecobulles Locked",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("locked"),
+    ),
+    EcobullesSensorDescription(
+        key="suspended",
+        name="Ecobulles Suspended",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("suspended"),
+    ),
+)
+
+
+async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    """Set up Ecobulles sensors from a config entry."""
+    eco_ref = entry.data["eco_ref"]
+    coordinator = EcobullesCoordinator(
+        hass,
+        EcobullesClient(hass),
+        eco_ref,
+    )
+    await coordinator.async_config_entry_first_refresh()
+
+    entities: list[SensorEntity] = [
+        EcobullesDescribedSensor(coordinator, eco_ref, description)
+        for description in (*WATER_SENSORS, *DIAGNOSTIC_SENSORS)
+    ]
+    if entry.options.get(CONF_ENABLE_RAW_CO2_SENSOR, False):
+        entities.append(EcobullesDescribedSensor(coordinator, eco_ref, RAW_CO2_SENSOR))
+    entities.append(
+        CO2UsageSensor(
+            coordinator,
+            eco_ref,
+            entry.data.get("co2_bottle_weight", 10),
+        )
+    )
+    async_add_entities(entities)
+
+
+class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Fetch API data and own durable Ecobulles accounting state."""
+
+    def __init__(self, hass, api: EcobullesClient, eco_ref: str) -> None:
+        """Initialize the coordinator."""
         self.api = api
         self.eco_ref = eco_ref
+        self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{eco_ref}.water_usage")
+        self._water_usage_state: WaterUsageState | None = None
         super().__init__(
             hass,
             _LOGGER,
-            name="Ecobulles {self.name}",
-            update_interval=timedelta(hours=1),
+            name=f"Ecobulles {eco_ref}",
+            update_interval=timedelta(minutes=5),
         )
 
-    async def _async_update_data(self):
-        """Fetch water usage data from the API."""
+    async def _load_water_usage_state(self) -> WaterUsageState:
+        """Load durable water accounting once."""
+        if self._water_usage_state is None:
+            self._water_usage_state = WaterUsageState.from_dict(await self._store.async_load())
+        return self._water_usage_state
+
+    async def _async_update_data(self) -> dict[str, Any]:
+        """Fetch Ecobulles data and update cumulative water accounting."""
         try:
             async with async_timeout.timeout(10):
-                data1 = await self.api.getTotalWaterAndCo2Usage(self.eco_ref, self.hass)
-                data2 = await self.api.getDeviceInfo(self.eco_ref)
-                data = {
-                    **data1,
-                    "install_date": data2.get("data", {}).get("boite", {}).get("installdate", {}).get("date").replace(" ", "T"),
-                    "last_date_receive": data2.get("data", {}).get("boite", {}).get("lastdatereceive"),
-                    "activated": data2.get("data", {}).get("boite", {}).get("activated"),
-                    "locked": data2.get("data", {}).get("boite", {}).get("locked"),
-                    "suspended": data2.get("data", {}).get("boite", {}).get("suspended"),
-                    "suspended_time": data2.get("data").get("boite").get("suspended_time"),
-                    "suspended_date": (data2.get("data").get("boite").get("suspended_date")).replace(" ", "T"),
-                    "firm_ver": data2.get("data", {}).get("boite", {}).get("firm_ver"),
-                    "last_alert": data2.get("data").get("boite").get("last_alert"),
-                    "name": data2.get("data", {}).get("boite", {}).get("name"),
-                }
-
-                if not data:
-                    _LOGGER.warning("Aucune donnée reçue depuis l’API pour l’utilisation de l’eau et du CO2.")
-                    return None
-
-                return data
-
+                usage = await self.api.get_total_water_and_co2_usage(self.eco_ref)
+                device = await self.api.get_device_info(self.eco_ref)
         except Exception as err:
-            raise UpdateFailed(f"Error fetching water and co2 usage data: {err}")
+            raise UpdateFailed(f"Error fetching Ecobulles data: {err}") from err
+
+        if usage is None or device is None:
+            raise UpdateFailed("Ecobulles API returned incomplete data")
+
+        box = device.get("data", {}).get("boite", {})
+        water_state = await self._load_water_usage_state()
+        bottle_changed = water_state.apply_cycle_value(usage["total_eau"])
+        await self._store.async_save(water_state.as_dict())
+
+        if bottle_changed:
+            _LOGGER.info(
+                "Detected CO2 bottle change for %s; closed cycle at %s L",
+                self.eco_ref,
+                water_state.completed_cycles_liters,
+            )
+
+        return {
+            **usage,
+            **water_state.as_dict(),
+            "total_water_liters": water_state.total_water_liters,
+            "bottle_changed": bottle_changed,
+            "install_date": _isoish(box.get("installdate", {}).get("date")),
+            "last_date_receive": _isoish(box.get("lastdatereceive")),
+            "activated": box.get("activated"),
+            "locked": box.get("locked"),
+            "suspended": box.get("suspended"),
+            "suspended_time": box.get("suspended_time"),
+            "suspended_date": _isoish(box.get("suspended_date")),
+            "firm_ver": box.get("firm_ver"),
+            "last_alert": box.get("last_alert"),
+            "name": box.get("name"),
+        }
 
 
-class WaterUsageSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for displaying water usage."""
+def _isoish(value: str | None) -> str | None:
+    """Normalize API date strings without exploding on missing values."""
+    return value.replace(" ", "T") if value else None
 
-    def __init__(self, coordinator, eco_ref):
-        """Initialize the sensor."""
+
+class EcobullesBaseSensor(CoordinatorEntity[EcobullesCoordinator], SensorEntity):
+    """Base Ecobulles sensor."""
+
+    def __init__(self, coordinator: EcobullesCoordinator, eco_ref: str) -> None:
+        """Initialize the base sensor."""
         super().__init__(coordinator)
         self.eco_ref = eco_ref
-        self._attr_name = f"Ecobulles Water Usage"
-        self._attr_unique_id = f"{eco_ref}_total_water_usage"
-        self._attr_unit_of_measurement = UnitOfVolume.LITERS
-        self._attr_device_class = "water"
-        self._attr_state_class = "total_increasing"
 
     @property
-    def state(self):
-        """Return the state of the sensor."""
-        if self.coordinator.data is None:
-            return None
-        return self.coordinator.data.get("total_eau")
+    def device_info(self) -> dict[str, Any]:
+        """Return device registry metadata."""
+        return {"identifiers": {(DOMAIN, self.eco_ref)}}
 
     @property
-    def extra_state_attributes(self):
-        """Return other state attributes."""
-        if self.coordinator.data is None:
-            return None
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose useful shared metadata."""
         return {
-            "last_updated": self.coordinator.data.get("last_updated"),
             "eco_ref": self.eco_ref,
+            "last_updated": self.coordinator.data.get("last_updated"),
+            "bottle_changes": self.coordinator.data.get("bottle_changes"),
         }
 
-    @property
-    def device_info(self):
-        """Return info for linking with the correct device."""
-        return {
-            "identifiers": {(DOMAIN, self.eco_ref)},
-        }
+
+class EcobullesDescribedSensor(EcobullesBaseSensor):
+    """Generic sensor backed by an entity description."""
+
+    entity_description: EcobullesSensorDescription
+
+    def __init__(
+        self,
+        coordinator: EcobullesCoordinator,
+        eco_ref: str,
+        description: EcobullesSensorDescription,
+    ) -> None:
+        """Initialize a described sensor."""
+        super().__init__(coordinator, eco_ref)
+        self.entity_description = description
+        self._attr_unique_id = f"{eco_ref}_{description.key}"
 
     @property
-    def unit_of_measurement(self):
-        """Return the unit of measurement."""
-        return UnitOfVolume.LITERS.value
+    def native_value(self):
+        """Return the current sensor value."""
+        return self.entity_description.value_fn(self.coordinator.data)
 
-class CO2UsageSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for displaying CO2 usage."""
 
-    def __init__(self, coordinator, eco_ref, co2_bottle_weight):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.eco_ref = eco_ref
+class CO2UsageSensor(EcobullesBaseSensor):
+    """Expose the raw API gas counter as a bottle-relative percentage estimate."""
+
+    _attr_name = "Ecobulles CO2 Usage"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_icon = "mdi:molecule-co2"
+
+    def __init__(
+        self,
+        coordinator: EcobullesCoordinator,
+        eco_ref: str,
+        co2_bottle_weight: int,
+    ) -> None:
+        """Initialize the CO2 usage sensor."""
+        super().__init__(coordinator, eco_ref)
         self.co2_bottle_weight = co2_bottle_weight
-        self._attr_name = "Ecobulles CO2 Usage"
         self._attr_unique_id = f"{eco_ref}_co2_usage"
-        self._attr_unit_of_measurement = PERCENTAGE
-        self._attr_device_class = "weight"
-        self.icon = "mdi:molecule-co2"
 
     @property
-    def state(self):
-        """Return the state of the sensor."""
-        if self.coordinator.data is None:
+    def native_value(self) -> float | None:
+        """Return the estimated consumed fraction of the configured bottle."""
+        total_gas = self.coordinator.data.get("total_gas")
+        if total_gas is None:
             return None
-        total_gas_mg = self.coordinator.data.get("total_gas")
-        if total_gas_mg is not None:
-            # Assuming total_gas is in milligrams, convert to kg for 10kg bottle
-            bottle_weight_in_mg = self.co2_bottle_weight * 1_000_000
-            total_gas_mg = int(total_gas_mg)
-            # Calculate the percentage of CO2 used from the 10Kg bottle
-            percentage_used = (total_gas_mg / bottle_weight_in_mg) * 100
-            return round(percentage_used, 2)
-        return None
-
-    @property
-    def extra_state_attributes(self):
-        """Return other state attributes."""
-        if self.coordinator.data is None:
-            return None
-        return {
-            "last_updated": self.coordinator.data.get("last_updated"),
-            "eco_ref": self.eco_ref,
-            # Include other relevant information if needed
-        }
-
-    @property
-    def device_info(self):
-        """Return info for linking with the correct device."""
-        return {
-            "identifiers": {(DOMAIN, self.eco_ref)},
-        }
-
-class InstallDateSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for displaying the installation date of the ecobulles system"""
-    def __init__(self, coordinator, eco_ref: str):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.eco_ref = eco_ref
-        self._attr_name = "Ecobulles Install Date"
-        self._attr_unique_id = f"{eco_ref}_install_date"
-        self._attr_device_class = "date"
-        self._state = self.coordinator.data.get("install_date")
-        self.icon = "mdi:calendar"
-
-    @property
-    def state(self):
-        return self._state
-    
-    @property
-    def device_info(self):
-        """Return info for linking with the correct device."""
-        return {
-            "identifiers": {(DOMAIN, self.eco_ref)},
-        }
-
-class LastDateReceiveSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for displaying the last date receive of the ecobulles system"""
-    def __init__(self, coordinator, eco_ref: str):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.eco_ref = eco_ref
-        self._attr_name = "Ecobulles Last Date Receive"
-        self._attr_unique_id = f"{eco_ref}_last_date_receive"
-        self._attr_device_class = "date"
-        self._state = self.coordinator.data.get("last_date_receive")
-        self.icon = "mdi:calendar"
-
-    @property
-    def state(self):
-        return self._state
-    
-    @property
-    def device_info(self):
-        """Return info for linking with the correct device."""
-        return {
-            "identifiers": {(DOMAIN, self.eco_ref)},
-        }
-
-class ActivatedSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for displaying the activated status of the ecobulles system"""
-    def __init__(self, coordinator, eco_ref: str):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.eco_ref = eco_ref
-        self._attr_name = "Ecobulles Activated"
-        self._attr_unique_id = f"{eco_ref}_activated"
-        self._attr_device_class = "boolean"
-        self._state = self.coordinator.data.get("activated")
-        self.icon = "mdi:check-circle"
-
-    @property
-    def state(self):
-        return self._state
-    
-    @property
-    def device_info(self):
-        """Return info for linking with the correct device."""
-        return {
-            "identifiers": {(DOMAIN, self.eco_ref)},
-        }
-
-
-class LockedSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for displaying the locked status of the ecobulles system"""
-    def __init__(self, coordinator, eco_ref: str):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.eco_ref = eco_ref
-        self._attr_name = "Ecobulles Locked"
-        self._attr_unique_id = f"{eco_ref}_locked"
-        self._attr_device_class = "boolean"
-        self._state = self.coordinator.data.get("locked")
-        self.icon = "mdi:check-circle"
-
-    @property
-    def state(self):
-        return self._state
-    
-    @property
-    def device_info(self):
-        """Return info for linking with the correct device."""
-        return {
-            "identifiers": {(DOMAIN, self.eco_ref)},
-        }
-
-class SuspendedSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for displaying the suspended status of the ecobulles system"""
-    def __init__(self, coordinator, eco_ref: str):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.eco_ref = eco_ref
-        self._attr_name = "Ecobulles Suspended"
-        self._attr_unique_id = f"{eco_ref}_suspended"
-        self._attr_device_class = "boolean"
-        self._state = self.coordinator.data.get("suspended")
-        self.icon = "mdi:check-circle"
-
-    @property
-    def state(self):
-        return self._state
-    
-    @property
-    def device_info(self):
-        """Return info for linking with the correct device."""
-        return {
-            "identifiers": {(DOMAIN, self.eco_ref)},
-        }
+        bottle_weight_in_mg = self.co2_bottle_weight * 1_000_000
+        return round((int(total_gas) / bottle_weight_in_mg) * 100, 2)

@@ -13,7 +13,7 @@ from .const import DOMAIN
 
 # TODO List the platforms that you want to support.
 # For your initial PR, limit it to 1 platform.
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
 # PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.SWITCH]
 
 

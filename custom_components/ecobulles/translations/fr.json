@@ -20,7 +20,8 @@
                 "data": {
                     "email": "Email",
                     "password": "Mot de passe",
-                    "co2_bottle_weight": "Poids de la bouteille de Co2"
+                    "co2_bottle_weight": "Poids de la bouteille de Co2",
+                    "enable_raw_co2_sensor": "Activer le capteur de debug CO2 brut"
                 }
             }
         }

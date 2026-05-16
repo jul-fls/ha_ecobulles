@@ -12,14 +12,14 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlowWithConfigEntry,
 )
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, UnitOfMass
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .api import EcobullesClient
 
-from .const import DOMAIN
+from .const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,15 +33,13 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
-client = EcobullesClient()
-
-
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
 
     # Create an instance of your API client
 
     # Try to authenticate with the provided credentials
+    client = EcobullesClient(hass)
     auth_success, user_id, eco_ref, boitier_name = await client.authenticate(
         data[CONF_EMAIL], data[CONF_PASSWORD]
     )
@@ -55,6 +53,29 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     else:
         # Authentication failed
         raise InvalidAuth
+
+
+def _device_info_from_response(device_info_raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize the nested device payload stored in the config entry."""
+    box = device_info_raw.get("data", {}).get("boite", {})
+    return {
+        "name": box.get("name"),
+        "install_date": _isoish(box.get("installdate", {}).get("date")),
+        "firmware_version": box.get("firm_ver"),
+        "num_serie": box.get("num_serie"),
+        "last_date_receive": _isoish(box.get("lastdatereceive")),
+        "activated": box.get("activated"),
+        "locked": box.get("locked"),
+        "suspended": box.get("suspended"),
+        "suspended_time": box.get("suspended_time"),
+        "suspended_date": _isoish(box.get("suspended_date")),
+        "last_alert": box.get("last_alert"),
+    }
+
+
+def _isoish(value: str | None) -> str | None:
+    """Normalize the API's date-ish strings."""
+    return value.replace(" ", "T") if value else None
 
 
 class ConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -85,20 +106,13 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
             else:
                 if info["title"]:
-                    device_info_raw = await client.getDeviceInfo(info["eco_ref"])
-                    device_info = {
-                        "eco_ref": info.get("eco_ref"),
-                        "name": device_info_raw.get("data").get("boite").get("name"),
-                        "install_date": (device_info_raw.get("data").get("boite").get("installdate").get("date")).replace(" ", "T"),
-                        "firmware_version": device_info_raw.get("data").get("boite").get("firm_ver"),"num_serie": device_info_raw.get("data").get("boite").get("num_serie"),
-                        "last_date_receive": (device_info_raw.get("data").get("boite").get("lastdatereceive")).replace(" ", "T"),"activated": device_info_raw.get("data").get("boite").get("activated"),
-                        "locked": device_info_raw.get("data").get("boite").get("locked"),
-                        "suspended": device_info_raw.get("data").get("boite").get("suspended"),
-                        "suspended_time": device_info_raw.get("data").get("boite").get("suspended_time"),
-                        "suspended_date": (device_info_raw.get("data").get("boite").get("suspended_date")).replace(" ", "T"),
-                        "last_alert": device_info_raw.get("data").get("boite").get("last_alert"),
+                    client = EcobullesClient(self.hass)
+                    device_info_raw = await client.get_device_info(info["eco_ref"])
+                    entry_data = {
+                        **user_input,
+                        **info,
+                        **_device_info_from_response(device_info_raw or {}),
                     }
-                    entry_data = {**user_input, **info, **device_info}
                     # Ensure you're not storing 'title' in the entry data, as it was used just for entry naming
                     entry_data.pop("title", None)
 
@@ -141,43 +155,13 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                 errors["base"] = "unknown"
             else:
                 if info["title"]:
-                    device_info_raw = await client.getDeviceInfo(info["eco_ref"])
-                    device_info = {
-                        "eco_ref": info.get("eco_ref"),
-                        "name": device_info_raw.get("data").get("boite").get("name"),
-                        "install_date": device_info_raw.get("data")
-                        .get("boite")
-                        .get("installdate")
-                        .get("date"),
-                        "firmware_version": device_info_raw.get("data")
-                        .get("boite")
-                        .get("firm_ver"),
-                        "num_serie": device_info_raw.get("data")
-                        .get("boite")
-                        .get("num_serie"),
-                        "last_date_receive": device_info_raw.get("data")
-                        .get("boite")
-                        .get("lastdatereceive"),
-                        "activated": device_info_raw.get("data")
-                        .get("boite")
-                        .get("activated"),
-                        "locked": device_info_raw.get("data")
-                        .get("boite")
-                        .get("locked"),
-                        "suspended": device_info_raw.get("data")
-                        .get("boite")
-                        .get("suspended"),
-                        "suspended_time": device_info_raw.get("data")
-                        .get("boite")
-                        .get("suspended_time"),
-                        "suspended_date": device_info_raw.get("data")
-                        .get("boite")
-                        .get("suspended_date"),
-                        "last_alert": device_info_raw.get("data")
-                        .get("boite")
-                        .get("last_alert"),
+                    client = EcobullesClient(self.hass)
+                    device_info_raw = await client.get_device_info(info["eco_ref"])
+                    entry_data = {
+                        **user_input,
+                        **info,
+                        **_device_info_from_response(device_info_raw or {}),
                     }
-                    entry_data = {**user_input, **info, **device_info}
                     # Ensure you're not storing 'title' in the entry data, as it was used just for entry naming
                     entry_data.pop("title", None)
                     # Update config entry with new data if validation is successful
@@ -195,16 +179,6 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                     # If validation fails, show an error on the form
                     errors["base"] = "invalid_auth"
 
-                # update config entry
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data=entry_data,
-                    options=self.config_entry.options,
-                )
-
-                return self.async_create_entry(
-                    title=self.config_entry.title, data=entry_data
-                )
         options_schema = vol.Schema(
             {
                 vol.Required(
@@ -217,6 +191,12 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                     "co2_bottle_weight",
                     default=self.config_entry.data["co2_bottle_weight"],
                 ): int,
+                vol.Optional(
+                    CONF_ENABLE_RAW_CO2_SENSOR,
+                    default=self.config_entry.options.get(
+                        CONF_ENABLE_RAW_CO2_SENSOR, False
+                    ),
+                ): bool,
                 # vol.Reqquired(
                 #     "co2_injection_rate",
                 #     default=self.config_entry.data["co2_injection_rate"],

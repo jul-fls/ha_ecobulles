@@ -7,6 +7,14 @@
           "password": "[%key:common::config_flow::data::password%]",
           "co2_bottle_weight": "[%key:common::config_flow::data::co2_bottle_weight%]"
         }
+      },
+      "init": {
+        "data": {
+          "email": "[%key:common::config_flow::data::email%]",
+          "password": "[%key:common::config_flow::data::password%]",
+          "co2_bottle_weight": "[%key:common::config_flow::data::co2_bottle_weight%]",
+          "enable_raw_co2_sensor": "Enable raw CO2 debug sensor"
+        }
       }
     },
     "error": {

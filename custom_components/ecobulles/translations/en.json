@@ -20,7 +20,8 @@
                 "data": {
                     "email": "Email",
                     "password": "Password",
-                    "co2_bottle_weight": "CO2 Bottle Weight"
+                    "co2_bottle_weight": "CO2 Bottle Weight",
+                    "enable_raw_co2_sensor": "Enable raw CO2 debug sensor"
                 }
             }
         }
