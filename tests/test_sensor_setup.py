@@ -6,7 +6,10 @@ import pytest
 
 from custom_components.ecobulles.const import DOMAIN
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.usefixtures("enable_custom_integrations"),
+]
 
 
 async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) -> None:

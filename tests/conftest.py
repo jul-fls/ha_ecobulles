@@ -5,6 +5,8 @@ import pytest
 
 from custom_components.ecobulles.const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
 
+pytest_plugins = "pytest_homeassistant_custom_component"
+
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
