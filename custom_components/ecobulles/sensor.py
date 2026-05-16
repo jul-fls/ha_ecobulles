@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 import logging
 from typing import Any, Callable
 
@@ -21,6 +21,7 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
+from homeassistant.util.dt import as_local, parse_datetime
 
 from .api import EcobullesClient
 from .const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
@@ -78,12 +79,11 @@ DIAGNOSTIC_SENSORS: tuple[EcobullesSensorDescription, ...] = (
         name="Ecobulles Install Date",
         device_class=SensorDeviceClass.DATE,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: data.get("install_date"),
+        value_fn=lambda data: _parse_date(data.get("install_date")),
     ),
     EcobullesSensorDescription(
         key="last_date_receive",
         name="Ecobulles Last Date Receive",
-        device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("last_date_receive"),
     ),
@@ -201,6 +201,14 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 def _isoish(value: str | None) -> str | None:
     """Normalize API date strings without exploding on missing values."""
     return value.replace(" ", "T") if value else None
+
+
+def _parse_date(value: str | None) -> date | None:
+    """Parse an API date string for Home Assistant's date device class."""
+    parsed = parse_datetime(value) if value else None
+    return as_local(parsed).date() if parsed else None
+
+
 
 
 class EcobullesBaseSensor(CoordinatorEntity[EcobullesCoordinator], SensorEntity):

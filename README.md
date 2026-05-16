@@ -42,3 +42,41 @@ Instead it runs:
 
 That keeps CI deterministic while still checking that the integration loads,
 creates the expected entities, and remains publishable as the project evolves.
+
+## Sensors
+
+### Water sensors
+
+| Sensor | Meaning |
+| --- | --- |
+| `Ecobulles Water Usage` | The value reported by Ecobulles for the current CO2 bottle cycle. This can drop when the bottle is changed. |
+| `Ecobulles Water Usage Completed CO2 Bottles` | The sum of all *finished* bottle cycles that this integration has already observed. It only increases when a bottle change is detected. |
+| `Ecobulles Water Usage Total` | The immutable lifetime total reconstructed by the integration: `completed bottle cycles + current bottle cycle`. This is the best water sensor to use for long-term statistics / dashboards because it never decreases. |
+
+Example:
+
+```text
+Bottle A reaches 165894 L
+New bottle starts at 165494 L
+
+Ecobulles Water Usage                         = 165494 L
+Ecobulles Water Usage Completed CO2 Bottles  = 165894 L
+Ecobulles Water Usage Total                  = 331388 L
+```
+
+### CO2 sensors
+
+| Sensor | Meaning |
+| --- | --- |
+| `Ecobulles CO2 Usage` | A best-effort percentage estimate derived from the API CO2 value and the configured bottle weight. The exact meaning of the Ecobulles API value is not yet proven. |
+| `Ecobulles Raw CO2 Value` | Optional diagnostic sensor, enabled by the `Ecobulles Raw CO2 Debug` switch, exposing the untouched CO2 value returned by the API so users can study its behavior over time. |
+
+### Diagnostic sensors
+
+| Sensor | Meaning |
+| --- | --- |
+| `Ecobulles Install Date` | Installation date reported by the device. |
+| `Ecobulles Last Date Receive` | Last timestamp at which the device reported data, passed through from the API. |
+| `Ecobulles Activated` | Activation state reported by the device. |
+| `Ecobulles Locked` | Lock state reported by the device. |
+| `Ecobulles Suspended` | Suspension state reported by the device. |

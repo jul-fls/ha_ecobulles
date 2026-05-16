@@ -55,5 +55,7 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
     assert hass.states.get("sensor.ecobulles_water_usage") is not None
     assert hass.states.get("sensor.ecobulles_water_usage_total") is not None
     assert hass.states.get("sensor.ecobulles_raw_co2_value") is not None
+    assert hass.states["sensor.ecobulles_install_date"].state == "2024-01-01"
+    assert hass.states["sensor.ecobulles_last_date_receive"].state == "2025-06-05T21:50:00"
     assert hass.states.get("switch.ecobulles_raw_co2_debug") is not None
     assert hass.config_entries.async_entries(DOMAIN)
