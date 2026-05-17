@@ -80,8 +80,8 @@ Ecobulles Water Usage Total                     = 165901 L
 
 | Sensor | Meaning |
 | --- | --- |
-| `Ecobulles Install Date` | Installation date reported by the device. |
-| `Ecobulles Last Date Receive` | Last timestamp at which the device reported data, passed through from the API. |
+| `Ecobulles Install Date` | Installation timestamp reported by the device. |
+| `Ecobulles Last Date Receive` | Last timestamp at which the device reported data. |
 | `Ecobulles Activated` | Activation state reported by the device. |
 | `Ecobulles Locked` | Lock state reported by the device. |
 | `Ecobulles Suspended` | Suspension state reported by the device. |
@@ -167,8 +167,8 @@ Consommation d'eau totale                              = 165901 L
 
 | Capteur | Signification |
 | --- | --- |
-| `Date d'installation` | Date d'installation reportée par l'appareil. |
-| `Dernière réception` | Dernier horodatage auquel l'appareil a transmis des données, repris tel quel depuis l'API. |
+| `Date d'installation` | Horodatage d'installation reporté par l'appareil. |
+| `Dernière réception` | Dernier horodatage auquel l'appareil a transmis des données. |
 | `Activé` | État d'activation reporté par l'appareil. |
 | `Verrouillé` | État de verrouillage reporté par l'appareil. |
 | `Suspendu` | État de suspension reporté par l'appareil. |
