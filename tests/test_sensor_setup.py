@@ -80,6 +80,6 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
     assert last_receive_entity_id is not None
     assert raw_debug_switch_entity_id is not None
 
-    assert hass.states[install_date_entity_id].state == "2024-01-01"
-    assert hass.states[last_receive_entity_id].state == "2025-06-05T21:50:00"
+    assert hass.states.get(install_date_entity_id).state == "2024-01-01"
+    assert hass.states.get(last_receive_entity_id).state == "2025-06-05T21:50:00"
     assert hass.config_entries.async_entries(DOMAIN)
