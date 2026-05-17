@@ -34,8 +34,8 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
                 return_value={
                     "data": {
                         "boite": {
-                            "installdate": {"date": "2024-01-01 00:00:00"},
-                            "lastdatereceive": "2025-06-05 21:50:00",
+                            "installdate": {"date": "2024-01-01T00:00:00+00:00"},
+                            "lastdatereceive": "2025-06-05T21:50:00+00:00",
                             "activated": True,
                             "locked": False,
                             "suspended": False,
