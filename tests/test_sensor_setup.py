@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from homeassistant.helpers import entity_registry as er
 
 from custom_components.ecobulles.const import DOMAIN
 
@@ -52,10 +53,33 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
         assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
         await hass.async_block_till_done()
 
-    assert hass.states.get("sensor.ecobulles_water_usage") is not None
-    assert hass.states.get("sensor.ecobulles_water_usage_total") is not None
-    assert hass.states.get("sensor.ecobulles_raw_co2_value") is not None
-    assert hass.states["sensor.ecobulles_install_date"].state == "2024-01-01"
-    assert hass.states["sensor.ecobulles_last_date_receive"].state == "2025-06-05T21:50:00"
-    assert hass.states.get("switch.ecobulles_raw_co2_debug") is not None
+    registry = er.async_get(hass)
+    water_usage_entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, "test-eco-ref_total_water_usage"
+    )
+    total_water_entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, "test-eco-ref_water_usage_total"
+    )
+    raw_co2_entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, "test-eco-ref_raw_co2_value"
+    )
+    install_date_entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, "test-eco-ref_install_date"
+    )
+    last_receive_entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, "test-eco-ref_last_date_receive"
+    )
+    raw_debug_switch_entity_id = registry.async_get_entity_id(
+        "switch", DOMAIN, "test-eco-ref_raw_co2_debug"
+    )
+
+    assert water_usage_entity_id is not None
+    assert total_water_entity_id is not None
+    assert raw_co2_entity_id is not None
+    assert install_date_entity_id is not None
+    assert last_receive_entity_id is not None
+    assert raw_debug_switch_entity_id is not None
+
+    assert hass.states[install_date_entity_id].state == "2024-01-01"
+    assert hass.states[last_receive_entity_id].state == "2025-06-05T21:50:00"
     assert hass.config_entries.async_entries(DOMAIN)
