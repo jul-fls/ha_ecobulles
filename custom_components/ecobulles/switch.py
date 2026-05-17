@@ -23,7 +23,8 @@ async def async_setup_entry(
 class RawCO2DebugSwitch(SwitchEntity):
     """Enable or disable the raw CO2 diagnostic sensor."""
 
-    _attr_name = "Ecobulles Raw CO2 Debug"
+    _attr_has_entity_name = True
+    _attr_translation_key = "raw_co2_debug"
     _attr_icon = "mdi:bug-outline"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 

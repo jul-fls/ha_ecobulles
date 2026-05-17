@@ -41,7 +41,7 @@ class EcobullesSensorDescription(SensorEntityDescription):
 WATER_SENSORS: tuple[EcobullesSensorDescription, ...] = (
     EcobullesSensorDescription(
         key="total_water_usage",
-        name="Ecobulles Water Usage",
+        translation_key="total_water_usage",
         native_unit_of_measurement=UnitOfVolume.LITERS,
         device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -49,7 +49,7 @@ WATER_SENSORS: tuple[EcobullesSensorDescription, ...] = (
     ),
     EcobullesSensorDescription(
         key="water_usage_completed_bottles",
-        name="Ecobulles Water Usage Completed CO2 Bottles",
+        translation_key="water_usage_completed_bottles",
         native_unit_of_measurement=UnitOfVolume.LITERS,
         device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL,
@@ -57,7 +57,7 @@ WATER_SENSORS: tuple[EcobullesSensorDescription, ...] = (
     ),
     EcobullesSensorDescription(
         key="water_usage_total",
-        name="Ecobulles Water Usage Total",
+        translation_key="water_usage_total",
         native_unit_of_measurement=UnitOfVolume.LITERS,
         device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL,
@@ -67,7 +67,7 @@ WATER_SENSORS: tuple[EcobullesSensorDescription, ...] = (
 
 RAW_CO2_SENSOR = EcobullesSensorDescription(
     key="raw_co2_value",
-    name="Ecobulles Raw CO2 Value",
+    translation_key="raw_co2_value",
     state_class=SensorStateClass.MEASUREMENT,
     entity_category=EntityCategory.DIAGNOSTIC,
     value_fn=lambda data: data.get("total_gas"),
@@ -76,32 +76,32 @@ RAW_CO2_SENSOR = EcobullesSensorDescription(
 DIAGNOSTIC_SENSORS: tuple[EcobullesSensorDescription, ...] = (
     EcobullesSensorDescription(
         key="install_date",
-        name="Ecobulles Install Date",
+        translation_key="install_date",
         device_class=SensorDeviceClass.DATE,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: _parse_date(data.get("install_date")),
     ),
     EcobullesSensorDescription(
         key="last_date_receive",
-        name="Ecobulles Last Date Receive",
+        translation_key="last_date_receive",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("last_date_receive"),
     ),
     EcobullesSensorDescription(
         key="activated",
-        name="Ecobulles Activated",
+        translation_key="activated",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("activated"),
     ),
     EcobullesSensorDescription(
         key="locked",
-        name="Ecobulles Locked",
+        translation_key="locked",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("locked"),
     ),
     EcobullesSensorDescription(
         key="suspended",
-        name="Ecobulles Suspended",
+        translation_key="suspended",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("suspended"),
     ),
@@ -214,6 +214,8 @@ def _parse_date(value: str | None) -> date | None:
 class EcobullesBaseSensor(CoordinatorEntity[EcobullesCoordinator], SensorEntity):
     """Base Ecobulles sensor."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, coordinator: EcobullesCoordinator, eco_ref: str) -> None:
         """Initialize the base sensor."""
         super().__init__(coordinator)
@@ -259,7 +261,7 @@ class EcobullesDescribedSensor(EcobullesBaseSensor):
 class CO2UsageSensor(EcobullesBaseSensor):
     """Expose the raw API gas counter as a bottle-relative percentage estimate."""
 
-    _attr_name = "Ecobulles CO2 Usage"
+    _attr_translation_key = "co2_usage"
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_icon = "mdi:molecule-co2"
 

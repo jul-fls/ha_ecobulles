@@ -1,7 +1,12 @@
 # ha_ecobulles
-An Home Assistant custom component to allow control and getting sensors data of an [Ecobulles](https://ecobulles.com) system installation
 
-## Install
+Home Assistant custom integration for an [Ecobulles](https://ecobulles.com) installation.
+
+[English](#english) · [Français](#français)
+
+## English
+
+### Install
 
 [![Open your Home Assistant instance and open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jul-fls&repository=ha_ecobulles&category=integration)
 
@@ -11,7 +16,7 @@ An Home Assistant custom component to allow control and getting sensors data of 
 2. Download the integration in HACS and restart Home Assistant.
 3. Use the second button to start the Ecobulles setup flow.
 
-## Local validation
+### Local validation
 
 Before pushing changes, run:
 
@@ -23,14 +28,14 @@ This performs a syntax compilation pass for the integration and exercises the
 water-accounting logic that keeps lifetime usage monotonic across CO2 bottle
 changes.
 
-## Raw CO2 diagnostics
+### Raw CO2 diagnostics
 
 If you want to study the API's undocumented CO2 value over time, enable the
 `Ecobulles Raw CO2 Debug` switch in Home Assistant. When enabled, the integration
 adds a diagnostic sensor named `Ecobulles Raw CO2 Value` so you can compare its
 hourly / daily evolution against bottle changes and water usage.
 
-## CI
+### CI
 
 The GitHub Actions pipeline intentionally avoids real Ecobulles credentials.
 Instead it runs:
@@ -43,35 +48,35 @@ Instead it runs:
 That keeps CI deterministic while still checking that the integration loads,
 creates the expected entities, and remains publishable as the project evolves.
 
-## Sensors
+### Sensors
 
-### Water sensors
+#### Water sensors
 
 | Sensor | Meaning |
 | --- | --- |
-| `Ecobulles Water Usage` | The value reported by Ecobulles for the current CO2 bottle cycle. This can drop when the bottle is changed. |
-| `Ecobulles Water Usage Completed CO2 Bottles` | The sum of all *finished* bottle cycles that this integration has already observed. It only increases when a bottle change is detected. |
+| `Ecobulles Water Usage` | The value reported by Ecobulles for the current CO2 bottle cycle. It resets to `0` when the bottle is changed, although by the next refresh it may already be a small value such as `2 L` or `10 L`. |
+| `Ecobulles Water Usage Before Current CO2 Bottle` | The sum of all *finished* bottle cycles that this integration has already observed. It only increases when a bottle change is detected. |
 | `Ecobulles Water Usage Total` | The immutable lifetime total reconstructed by the integration: `completed bottle cycles + current bottle cycle`. This is the best water sensor to use for long-term statistics / dashboards because it never decreases. |
 
 Example:
 
 ```text
 Bottle A reaches 165894 L
-New bottle starts at 165494 L
+Bottle B starts at 7 L before the next refresh
 
-Ecobulles Water Usage                         = 165494 L
-Ecobulles Water Usage Completed CO2 Bottles  = 165894 L
-Ecobulles Water Usage Total                  = 331388 L
+Ecobulles Water Usage                            = 7 L
+Ecobulles Water Usage Before Current CO2 Bottle = 165894 L
+Ecobulles Water Usage Total                     = 165901 L
 ```
 
-### CO2 sensors
+#### CO2 sensors
 
 | Sensor | Meaning |
 | --- | --- |
 | `Ecobulles CO2 Usage` | A best-effort percentage estimate derived from the API CO2 value and the configured bottle weight. The exact meaning of the Ecobulles API value is not yet proven. |
 | `Ecobulles Raw CO2 Value` | Optional diagnostic sensor, enabled by the `Ecobulles Raw CO2 Debug` switch, exposing the untouched CO2 value returned by the API so users can study its behavior over time. |
 
-### Diagnostic sensors
+#### Diagnostic sensors
 
 | Sensor | Meaning |
 | --- | --- |
@@ -80,3 +85,95 @@ Ecobulles Water Usage Total                  = 331388 L
 | `Ecobulles Activated` | Activation state reported by the device. |
 | `Ecobulles Locked` | Lock state reported by the device. |
 | `Ecobulles Suspended` | Suspension state reported by the device. |
+
+Entity names are translated from Home Assistant's backend language when the
+entities are first created. Entity IDs and unique IDs stay stable; changing the
+backend language later does not automatically rename already-created entities.
+
+## Français
+
+### Installation
+
+[![Ouvrir votre instance Home Assistant et ouvrir ce dépôt dans HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jul-fls&repository=ha_ecobulles&category=integration)
+
+[![Ouvrir votre instance Home Assistant et démarrer la configuration d'une nouvelle intégration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=ecobulles)
+
+1. Ajoutez le dépôt à HACS avec le premier bouton ci-dessus.
+2. Téléchargez l'intégration dans HACS puis redémarrez Home Assistant.
+3. Utilisez le second bouton pour démarrer la configuration d'Ecobulles.
+
+### Validation locale
+
+Avant de pousser des changements, lancez :
+
+```powershell
+python .\scripts\check_integration.py
+```
+
+Cette commande compile l'intégration et vérifie la logique de comptage de l'eau
+qui conserve une consommation totale monotone malgré les changements de bouteille
+de CO2.
+
+### Diagnostic CO2 brut
+
+Pour étudier dans le temps la valeur CO2 non documentée de l'API, activez
+l'interrupteur `Debug CO2 brut` dans Home Assistant. Lorsqu'il est activé,
+l'intégration ajoute le capteur de diagnostic `Valeur CO2 brute`, afin de comparer
+son évolution horaire / journalière avec les changements de bouteille et la
+consommation d'eau.
+
+### CI
+
+Le pipeline GitHub Actions évite volontairement d'utiliser de vrais identifiants
+Ecobulles. Il exécute :
+
+- la commande de régression locale ci-dessus ;
+- des tests d'intégration Home Assistant avec API simulée ;
+- la validation Hassfest ;
+- la validation HACS du dépôt.
+
+Cela garde la CI déterministe tout en vérifiant que l'intégration se charge,
+crée les bonnes entités et reste publiable au fil de son évolution.
+
+### Capteurs
+
+#### Capteurs d'eau
+
+| Capteur | Signification |
+| --- | --- |
+| `Consommation d'eau` | La valeur reportée par Ecobulles pour le cycle de la bouteille de CO2 actuelle. Elle revient à `0` lors d'un changement de bouteille, même si au prochain rafraîchissement elle peut déjà valoir quelques litres, par exemple `2 L` ou `10 L`. |
+| `Consommation d'eau avant la bouteille de CO2 actuelle` | La somme de tous les cycles de bouteilles *terminés* déjà observés par l'intégration. Elle n'augmente que lorsqu'un changement de bouteille est détecté. |
+| `Consommation d'eau totale` | Le total immuable reconstruit par l'intégration : `cycles de bouteilles terminés + cycle actuel`. C'est le meilleur capteur à utiliser pour les statistiques longues / tableaux de bord, car il ne diminue jamais. |
+
+Exemple :
+
+```text
+La bouteille A atteint 165894 L
+La bouteille B est déjà à 7 L avant le prochain rafraîchissement
+
+Consommation d'eau                                      = 7 L
+Consommation d'eau avant la bouteille de CO2 actuelle = 165894 L
+Consommation d'eau totale                              = 165901 L
+```
+
+#### Capteurs CO2
+
+| Capteur | Signification |
+| --- | --- |
+| `Consommation de CO2` | Une estimation en pourcentage, calculée à partir de la valeur CO2 de l'API et du poids de bouteille configuré. La signification exacte de la valeur API Ecobulles n'est pas encore prouvée. |
+| `Valeur CO2 brute` | Capteur de diagnostic optionnel, activé par l'interrupteur `Debug CO2 brut`, qui expose la valeur CO2 brute renvoyée par l'API afin d'étudier son comportement dans le temps. |
+
+#### Capteurs de diagnostic
+
+| Capteur | Signification |
+| --- | --- |
+| `Date d'installation` | Date d'installation reportée par l'appareil. |
+| `Dernière réception` | Dernier horodatage auquel l'appareil a transmis des données, repris tel quel depuis l'API. |
+| `Activé` | État d'activation reporté par l'appareil. |
+| `Verrouillé` | État de verrouillage reporté par l'appareil. |
+| `Suspendu` | État de suspension reporté par l'appareil. |
+
+Les noms des entités sont traduits selon la langue backend de Home Assistant au
+moment de leur première création. Les entity IDs et unique IDs restent stables ;
+changer la langue backend plus tard ne renomme pas automatiquement les entités
+déjà créées.
