@@ -14,24 +14,78 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import FlowResult, section
 from homeassistant.exceptions import HomeAssistantError
 
 from .api import EcobullesClient
 
-from .const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
+from .const import (
+    CONF_CO2_BOTTLE_WEIGHT_KG,
+    CONF_CO2_MAX_DOSE_MG_PER_L,
+    CONF_CO2_MICROMETRIC_SCREW_SETTING,
+    CONF_CO2_MIN_DOSE_MG_PER_L,
+    CONF_CO2_PRESSURE_BAR,
+    CONF_CO2_REFERENCE_PULSE_MS_PER_L,
+    CONF_ENABLE_RAW_CO2_SENSOR,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
+ADVANCED_OPTIONS = "advanced_options"
 
-# TODO adjust the data schema to the data that you need
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_EMAIL): str,
-        vol.Required(CONF_PASSWORD): str,
-        vol.Required("co2_bottle_weight", default=10): int,
-        # vol.Required("co2_injection_rate", default=10): int,
-    }
-)
+
+def _config_schema(defaults: dict[str, Any]) -> vol.Schema:
+    """Return the Ecobulles setup/options schema."""
+    return vol.Schema(
+        {
+            vol.Required(CONF_EMAIL, default=defaults.get(CONF_EMAIL, "")): str,
+            vol.Required(CONF_PASSWORD, default=defaults.get(CONF_PASSWORD, "")): str,
+            vol.Required(
+                CONF_CO2_BOTTLE_WEIGHT_KG,
+                default=defaults.get(CONF_CO2_BOTTLE_WEIGHT_KG, 10),
+            ): vol.Coerce(float),
+            vol.Required(
+                CONF_CO2_MICROMETRIC_SCREW_SETTING,
+                default=defaults.get(CONF_CO2_MICROMETRIC_SCREW_SETTING, 5),
+            ): vol.Coerce(float),
+            vol.Optional(ADVANCED_OPTIONS): section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_CO2_PRESSURE_BAR,
+                            default=defaults.get(CONF_CO2_PRESSURE_BAR, 5),
+                        ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_CO2_MIN_DOSE_MG_PER_L,
+                            default=defaults.get(CONF_CO2_MIN_DOSE_MG_PER_L, 85),
+                        ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_CO2_MAX_DOSE_MG_PER_L,
+                            default=defaults.get(CONF_CO2_MAX_DOSE_MG_PER_L, 150),
+                        ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_CO2_REFERENCE_PULSE_MS_PER_L,
+                            default=defaults.get(
+                                CONF_CO2_REFERENCE_PULSE_MS_PER_L, 1500
+                            ),
+                        ): vol.Coerce(float),
+                    }
+                ),
+                {"collapsed": True},
+            ),
+        }
+    )
+
+
+STEP_USER_DATA_SCHEMA = _config_schema({})
+
+
+def _flatten_advanced_options(data: dict[str, Any]) -> dict[str, Any]:
+    """Flatten the advanced section returned by the data entry flow."""
+    flattened = {**data}
+    advanced_options = flattened.pop(ADVANCED_OPTIONS, {}) or {}
+    return {**flattened, **advanced_options}
+
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
@@ -95,6 +149,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            user_input = _flatten_advanced_options(user_input)
             try:
                 info = await validate_input(self.hass, user_input)
             except CannotConnect:
@@ -143,6 +198,7 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
         """Manage the options."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            user_input = _flatten_advanced_options(user_input)
             # Validate user input
             try:
                 info = await validate_input(self.hass, user_input)
@@ -164,9 +220,14 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                     }
                     # Ensure you're not storing 'title' in the entry data, as it was used just for entry naming
                     entry_data.pop("title", None)
+                    options = {
+                        CONF_ENABLE_RAW_CO2_SENSOR: bool(
+                            entry_data.pop(CONF_ENABLE_RAW_CO2_SENSOR, False)
+                        )
+                    }
                     # Update config entry with new data if validation is successful
                     self.hass.config_entries.async_update_entry(
-                        self.config_entry, data=entry_data
+                        self.config_entry, data=entry_data, options=options
                     )
                     # Optionally, you might want to reload the integration to apply changes
                     await self.hass.config_entries.async_reload(
@@ -179,30 +240,16 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                     # If validation fails, show an error on the form
                     errors["base"] = "invalid_auth"
 
-        options_schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_EMAIL, default=self.config_entry.data[CONF_EMAIL]
-                ): str,
-                vol.Required(
-                    CONF_PASSWORD, default=self.config_entry.data[CONF_PASSWORD]
-                ): str,
-                vol.Required(
-                    "co2_bottle_weight",
-                    default=self.config_entry.data["co2_bottle_weight"],
-                ): int,
-                vol.Optional(
-                    CONF_ENABLE_RAW_CO2_SENSOR,
-                    default=self.config_entry.options.get(
-                        CONF_ENABLE_RAW_CO2_SENSOR, False
-                    ),
-                ): bool,
-                # vol.Reqquired(
-                #     "co2_injection_rate",
-                #     default=self.config_entry.data["co2_injection_rate"],
-                # ): int,
-            }
-        )
+        options_schema_dict = dict(_config_schema(self.config_entry.data).schema)
+        options_schema_dict[
+            vol.Optional(
+                CONF_ENABLE_RAW_CO2_SENSOR,
+                default=self.config_entry.options.get(
+                    CONF_ENABLE_RAW_CO2_SENSOR, False
+                ),
+            )
+        ] = bool
+        options_schema = vol.Schema(options_schema_dict)
         return self.async_show_form(step_id="init", data_schema=options_schema)
 
 

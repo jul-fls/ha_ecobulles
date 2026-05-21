@@ -5,15 +5,37 @@
         "data": {
           "email": "[%key:common::config_flow::data::email%]",
           "password": "[%key:common::config_flow::data::password%]",
-          "co2_bottle_weight": "CO2 bottle weight"
+          "co2_bottle_weight": "CO2 mass in bottle (kg)",
+          "co2_micrometric_screw_setting": "Micrometric screw setting",
+          "co2_pressure_bar": "CO2 pressure (bar)",
+          "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
+          "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
+          "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)"
+        },
+        "sections": {
+          "advanced_options": {
+            "name": "Advanced settings",
+            "description": "Assumptions used to estimate CO2 consumption. The defaults are suitable for most installations."
+          }
         }
       },
       "init": {
         "data": {
           "email": "[%key:common::config_flow::data::email%]",
           "password": "[%key:common::config_flow::data::password%]",
-          "co2_bottle_weight": "CO2 bottle weight",
-          "enable_raw_co2_sensor": "Enable raw CO2 debug sensor"
+          "co2_bottle_weight": "CO2 mass in bottle (kg)",
+          "enable_raw_co2_sensor": "Enable raw CO2 debug sensor",
+          "co2_micrometric_screw_setting": "Micrometric screw setting",
+          "co2_pressure_bar": "CO2 pressure (bar)",
+          "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
+          "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
+          "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)"
+        },
+        "sections": {
+          "advanced_options": {
+            "name": "Advanced settings",
+            "description": "Assumptions used to estimate CO2 consumption. The defaults are suitable for most installations."
+          }
         }
       }
     },
@@ -55,8 +77,11 @@
       "suspended": {
         "name": "Suspended"
       },
-      "co2_usage": {
-        "name": "CO2 usage"
+      "co2_injection_time": {
+        "name": "CO2 injection time"
+      },
+      "estimated_co2_bottle_usage": {
+        "name": "Estimated CO2 bottle usage"
       }
     },
     "switch": {

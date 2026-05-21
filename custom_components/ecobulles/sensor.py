@@ -14,7 +14,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfVolume
+from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfTime, UnitOfVolume
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -24,7 +24,16 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util.dt import as_utc, parse_datetime
 
 from .api import EcobullesClient
-from .const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
+from .const import (
+    CONF_CO2_BOTTLE_WEIGHT_KG,
+    CONF_CO2_MAX_DOSE_MG_PER_L,
+    CONF_CO2_MICROMETRIC_SCREW_SETTING,
+    CONF_CO2_MIN_DOSE_MG_PER_L,
+    CONF_CO2_PRESSURE_BAR,
+    CONF_CO2_REFERENCE_PULSE_MS_PER_L,
+    CONF_ENABLE_RAW_CO2_SENSOR,
+    DOMAIN,
+)
 from .water_usage import WaterUsageState
 
 _LOGGER = logging.getLogger(__name__)
@@ -126,12 +135,12 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
     if entry.options.get(CONF_ENABLE_RAW_CO2_SENSOR, False):
         entities.append(EcobullesDescribedSensor(coordinator, eco_ref, RAW_CO2_SENSOR))
     entities.append(
-        CO2UsageSensor(
+        CO2InjectionTimeSensor(
             coordinator,
             eco_ref,
-            entry.data.get("co2_bottle_weight", 10),
         )
     )
+    entities.append(EstimatedCO2BottleUsageSensor(coordinator, eco_ref, entry.data))
     async_add_entities(entities)
 
 
@@ -259,29 +268,123 @@ class EcobullesDescribedSensor(EcobullesBaseSensor):
         return self.entity_description.value_fn(self.coordinator.data)
 
 
-class CO2UsageSensor(EcobullesBaseSensor):
-    """Expose the raw API gas counter as a bottle-relative percentage estimate."""
+class CO2InjectionTimeSensor(EcobullesBaseSensor):
+    """Expose the API gas counter as cumulative injection time."""
 
-    _attr_translation_key = "co2_usage"
-    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_translation_key = "co2_injection_time"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:molecule-co2"
 
     def __init__(
         self,
         coordinator: EcobullesCoordinator,
         eco_ref: str,
-        co2_bottle_weight: int,
     ) -> None:
-        """Initialize the CO2 usage sensor."""
+        """Initialize the CO2 injection time sensor."""
         super().__init__(coordinator, eco_ref)
-        self.co2_bottle_weight = co2_bottle_weight
         self._attr_unique_id = f"{eco_ref}_co2_usage"
 
     @property
     def native_value(self) -> float | None:
-        """Return the estimated consumed fraction of the configured bottle."""
+        """Return cumulative CO2 valve-open time in seconds."""
         total_gas = self.coordinator.data.get("total_gas")
         if total_gas is None:
             return None
-        bottle_weight_in_mg = self.co2_bottle_weight * 1_000_000
-        return round((int(total_gas) / bottle_weight_in_mg) * 100, 2)
+        return round(int(total_gas) / 1000, 3)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the original raw millisecond counter."""
+        return {
+            **super().extra_state_attributes,
+            "raw_total_gas_ms": self.coordinator.data.get("total_gas"),
+            "interpretation": "cumulative CO2 electrovalve open time",
+        }
+
+
+class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
+    """Estimate bottle usage from injection time and Ecobulles dose guidance."""
+
+    _attr_translation_key = "estimated_co2_bottle_usage"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_icon = "mdi:gauge"
+
+    def __init__(
+        self,
+        coordinator: EcobullesCoordinator,
+        eco_ref: str,
+        config: dict[str, Any],
+    ) -> None:
+        """Initialize the estimated CO2 bottle usage sensor."""
+        super().__init__(coordinator, eco_ref)
+        self.config = config
+        self._attr_unique_id = f"{eco_ref}_estimated_co2_bottle_usage"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return estimated bottle usage percentage."""
+        total_gas = self.coordinator.data.get("total_gas")
+        flow_rate = self._estimated_flow_rate_g_per_min
+        bottle_weight_kg = float(self.config.get(CONF_CO2_BOTTLE_WEIGHT_KG, 10) or 10)
+        if total_gas is None or flow_rate <= 0 or bottle_weight_kg <= 0:
+            return None
+
+        open_minutes = int(total_gas) / 1000 / 60
+        used_grams = open_minutes * flow_rate
+        return round((used_grams / (bottle_weight_kg * 1000)) * 100, 2)
+
+    @property
+    def _estimated_flow_rate_g_per_min(self) -> float:
+        """Estimate active-valve CO2 flow in g/min.
+
+        Ecobulles indicates that a 10 kg CO2 bottle treats about 60-120 m3 or
+        80-120 m3 depending on the page, implying a practical middle range of
+        roughly 85-150 mg/L. The
+        micrometric screw is mapped linearly from setting 2 to 9 across that
+        range. With the observed/default 1500 ms pulse per liter, this gives:
+
+            g/min = dose_mg_per_l / pulse_ms_per_l * 60
+        """
+        dose = self._estimated_dose_mg_per_l
+        pulse_ms = float(
+            self.config.get(CONF_CO2_REFERENCE_PULSE_MS_PER_L, 1500) or 1500
+        )
+        if dose <= 0 or pulse_ms <= 0:
+            return 0
+        return dose / pulse_ms * 60
+
+    @property
+    def _estimated_dose_mg_per_l(self) -> float:
+        """Estimate CO2 dose in mg/L from the micrometric screw setting."""
+        screw = float(self.config.get(CONF_CO2_MICROMETRIC_SCREW_SETTING, 5) or 5)
+        min_dose = float(self.config.get(CONF_CO2_MIN_DOSE_MG_PER_L, 85) or 85)
+        max_dose = float(self.config.get(CONF_CO2_MAX_DOSE_MG_PER_L, 150) or 150)
+        normalized_screw = min(max(screw, 2), 9)
+        return min_dose + ((normalized_screw - 2) / 7) * (max_dose - min_dose)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the assumptions used by the estimate."""
+        total_gas = self.coordinator.data.get("total_gas") or 0
+        flow_rate = self._estimated_flow_rate_g_per_min
+        open_minutes = int(total_gas) / 1000 / 60
+        return {
+            **super().extra_state_attributes,
+            "co2_bottle_weight_kg": self.config.get(CONF_CO2_BOTTLE_WEIGHT_KG, 10),
+            "micrometric_screw_setting": self.config.get(
+                CONF_CO2_MICROMETRIC_SCREW_SETTING, 5
+            ),
+            "co2_pressure_bar": self.config.get(CONF_CO2_PRESSURE_BAR, 5),
+            "estimated_dose_mg_per_l": round(self._estimated_dose_mg_per_l, 3),
+            "reference_pulse_ms_per_l": self.config.get(
+                CONF_CO2_REFERENCE_PULSE_MS_PER_L, 1500
+            ),
+            "estimated_flow_rate_g_per_min": round(flow_rate, 6),
+            "estimated_used_co2_g": round(open_minutes * flow_rate, 3),
+            "calculation_model": "linear screw setting 2-9 mapped to 85-150 mg/L, using reference pulse ms/L",
+            "warning": (
+                "Estimate uses Ecobulles public dose range and is not a measured bottle calibration."
+            ),
+        }

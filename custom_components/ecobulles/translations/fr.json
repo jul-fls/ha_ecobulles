@@ -1,68 +1,93 @@
 {
-    "config": {
-        "abort": {
-            "already_configured": "L'appareil est déjà configuré"
-        },
-        "error": {
-            "cannot_connect": "Échec de la connexion",
-            "invalid_auth": "Authentification non valide",
-            "unknown": "Erreur inattendue"
-        },
-        "step": {
-            "user": {
-                "data": {
-                    "email": "Email",
-                    "password": "Mot de passe",
-                    "co2_bottle_weight": "Poids de la bouteille de Co2"
-                }
-            },
-            "init": {
-                "data": {
-                    "email": "Email",
-                    "password": "Mot de passe",
-                    "co2_bottle_weight": "Poids de la bouteille de Co2",
-                    "enable_raw_co2_sensor": "Activer le capteur de debug CO2 brut"
-                }
-            }
-        }
+  "config": {
+    "abort": {
+      "already_configured": "L'appareil est déjà configuré"
     },
-    "entity": {
-        "sensor": {
-            "total_water_usage": {
-                "name": "Consommation d'eau"
-            },
-            "water_usage_completed_bottles": {
-                "name": "Consommation d'eau avant la bouteille de CO2 actuelle"
-            },
-            "water_usage_total": {
-                "name": "Consommation d'eau totale"
-            },
-            "raw_co2_value": {
-                "name": "Valeur CO2 brute"
-            },
-            "install_date": {
-                "name": "Date d'installation"
-            },
-            "last_date_receive": {
-                "name": "Dernière réception"
-            },
-            "activated": {
-                "name": "Activé"
-            },
-            "locked": {
-                "name": "Verrouillé"
-            },
-            "suspended": {
-                "name": "Suspendu"
-            },
-            "co2_usage": {
-                "name": "Consommation de CO2"
-            }
+    "error": {
+      "cannot_connect": "Échec de la connexion",
+      "invalid_auth": "Authentification non valide",
+      "unknown": "Erreur inattendue"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "email": "Email",
+          "password": "Mot de passe",
+          "co2_bottle_weight": "Masse de CO2 dans la bouteille (kg)",
+          "co2_micrometric_screw_setting": "Réglage de la vis micrométrique",
+          "co2_pressure_bar": "Pression CO2 (bar)",
+          "co2_min_dose_mg_per_l": "Dose CO2 minimale (mg/L)",
+          "co2_max_dose_mg_per_l": "Dose CO2 maximale (mg/L)",
+          "co2_reference_pulse_ms_per_l": "Impulsion CO2 de référence (ms/L)"
         },
-        "switch": {
-            "raw_co2_debug": {
-                "name": "Debug CO2 brut"
-            }
+        "sections": {
+          "advanced_options": {
+            "name": "Réglages avancés",
+            "description": "Hypothèses utilisées pour estimer la consommation de CO2. Les valeurs par défaut conviennent à la plupart des installations."
+          }
         }
+      },
+      "init": {
+        "data": {
+          "email": "Email",
+          "password": "Mot de passe",
+          "co2_bottle_weight": "Masse de CO2 dans la bouteille (kg)",
+          "enable_raw_co2_sensor": "Activer le capteur de debug CO2 brut",
+          "co2_micrometric_screw_setting": "Réglage de la vis micrométrique",
+          "co2_pressure_bar": "Pression CO2 (bar)",
+          "co2_min_dose_mg_per_l": "Dose CO2 minimale (mg/L)",
+          "co2_max_dose_mg_per_l": "Dose CO2 maximale (mg/L)",
+          "co2_reference_pulse_ms_per_l": "Impulsion CO2 de référence (ms/L)"
+        },
+        "sections": {
+          "advanced_options": {
+            "name": "Réglages avancés",
+            "description": "Hypothèses utilisées pour estimer la consommation de CO2. Les valeurs par défaut conviennent à la plupart des installations."
+          }
+        }
+      }
     }
+  },
+  "entity": {
+    "sensor": {
+      "total_water_usage": {
+        "name": "Consommation d'eau"
+      },
+      "water_usage_completed_bottles": {
+        "name": "Consommation d'eau avant la bouteille de CO2 actuelle"
+      },
+      "water_usage_total": {
+        "name": "Consommation d'eau totale"
+      },
+      "raw_co2_value": {
+        "name": "Valeur CO2 brute"
+      },
+      "install_date": {
+        "name": "Date d'installation"
+      },
+      "last_date_receive": {
+        "name": "Dernière réception"
+      },
+      "activated": {
+        "name": "Activé"
+      },
+      "locked": {
+        "name": "Verrouillé"
+      },
+      "suspended": {
+        "name": "Suspendu"
+      },
+      "co2_injection_time": {
+        "name": "Temps d'injection CO2"
+      },
+      "estimated_co2_bottle_usage": {
+        "name": "Utilisation estimée de la bouteille CO2"
+      }
+    },
+    "switch": {
+      "raw_co2_debug": {
+        "name": "Debug CO2 brut"
+      }
+    }
+  }
 }

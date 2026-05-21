@@ -42,6 +42,22 @@ If you want to study the API's undocumented CO2 value over time, enable the
 adds a diagnostic sensor named `Ecobulles Raw CO2 Value` so you can compare its
 hourly / daily evolution against bottle changes and water usage.
 
+### CO2 estimation settings
+
+The integration stores the configured CO2 bottle mass, micrometric screw setting,
+and CO2 pressure. For the bottle estimate, it maps the micrometric screw range
+`2 → 9` linearly onto an estimated middle dose range of `85 → 150 mg/L`,
+derived from Ecobulles indications that a 10 kg CO2 bottle treats about
+`60 → 120 m³` or `80 → 120 m³` of water depending on the page.
+
+With the observed/default `1500 ms/L` CO2 pulse, the integration estimates:
+
+```text
+estimated dose mg/L = 85 + ((screw - 2) / 7) × 65
+estimated active flow g/min = estimated dose mg/L ÷ pulse ms/L × 60
+CO2 used ≈ injection open time × estimated active flow
+```
+
 ### CI
 
 The GitHub Actions pipeline intentionally avoids real Ecobulles credentials.
@@ -87,7 +103,8 @@ Ecobulles Water Usage Total                     = 165901 L
 
 | Sensor | Meaning |
 | --- | --- |
-| `Ecobulles CO2 Usage` | A best-effort percentage estimate derived from the API CO2 value and the configured bottle weight. The exact meaning of the Ecobulles API value is not yet proven. |
+| `Ecobulles CO2 Injection Time` | Cumulative CO2 electrovalve open time, derived from the API `total_gas` value. The API value appears to be milliseconds; the sensor displays seconds. |
+| `Ecobulles Estimated CO2 Bottle Usage` | Experimental estimate of bottle usage, derived from the configured bottle CO2 mass, micrometric screw setting, the inferred 85-150 mg/L middle dose range, and the observed/default 1500 ms/L pulse. |
 | `Ecobulles Raw CO2 Value` | Optional diagnostic sensor, enabled by the `Ecobulles Raw CO2 Debug` switch, exposing the untouched CO2 value returned by the API so users can study its behavior over time. |
 
 #### Diagnostic sensors
@@ -136,6 +153,18 @@ Cette commande compile l'intégration et vérifie la logique de comptage de l'ea
 qui conserve une consommation totale monotone malgré les changements de bouteille
 de CO2.
 
+Pour analyser directement l'historique Ecobulles depuis l'API, sans passer par
+l'historique Home Assistant :
+
+```powershell
+$env:ECOBULLES_EMAIL="vous@example.com"
+$env:ECOBULLES_PASSWORD="mot-de-passe"
+python .\scripts\analyze_co2_api_history.py --start "2026-05-17 00:00:00" --stop "2026-05-18 00:00:00" --bucket-minutes 5
+```
+
+Le script interroge des fenêtres précises et cherche notamment les périodes où
+`+1 L` d'eau correspond à `+1500` unités CO2 brutes.
+
 ### Diagnostic CO2 brut
 
 Pour étudier dans le temps la valeur CO2 non documentée de l'API, activez
@@ -143,6 +172,22 @@ l'interrupteur `Debug CO2 brut` dans Home Assistant. Lorsqu'il est activé,
 l'intégration ajoute le capteur de diagnostic `Valeur CO2 brute`, afin de comparer
 son évolution horaire / journalière avec les changements de bouteille et la
 consommation d'eau.
+
+### Réglages pour l'estimation CO2
+
+L'intégration conserve la masse de CO2 de la bouteille, le réglage de la vis
+micrométrique et la pression CO2. Pour l'estimation de bouteille, elle projette
+linéairement la plage de réglage de vis `2 → 9` sur une plage médiane estimée
+`85 → 150 mg/L`, déduite des indications Ecobulles selon lesquelles une bouteille
+de 10 kg de CO2 traite environ `60 → 120 m³` ou `80 → 120 m³` d'eau selon la page.
+
+Avec l'impulsion CO2 observée/par défaut de `1500 ms/L`, l'intégration estime :
+
+```text
+dose estimée mg/L = 85 + ((vis - 2) / 7) × 65
+débit actif estimé g/min = dose estimée mg/L ÷ impulsion ms/L × 60
+CO2 utilisé ≈ temps d'ouverture d'injection × débit actif estimé
+```
 
 ### CI
 
@@ -190,7 +235,8 @@ Consommation d'eau totale                              = 165901 L
 
 | Capteur | Signification |
 | --- | --- |
-| `Consommation de CO2` | Une estimation en pourcentage, calculée à partir de la valeur CO2 de l'API et du poids de bouteille configuré. La signification exacte de la valeur API Ecobulles n'est pas encore prouvée. |
+| `Temps d'injection CO2` | Temps cumulé d'ouverture de l'électrovanne CO2, dérivé de la valeur API `total_gas`. Cette valeur semble être exprimée en millisecondes ; le capteur l'affiche en secondes. |
+| `Utilisation estimée de la bouteille CO2` | Estimation expérimentale de l'utilisation de la bouteille, dérivée de la masse de CO2 configurée, du réglage de vis micrométrique, de la plage médiane estimée 85-150 mg/L et de l'impulsion observée/par défaut de 1500 ms/L. |
 | `Valeur CO2 brute` | Capteur de diagnostic optionnel, activé par l'interrupteur `Debug CO2 brut`, qui expose la valeur CO2 brute renvoyée par l'API afin d'étudier son comportement dans le temps. |
 
 #### Capteurs de diagnostic
