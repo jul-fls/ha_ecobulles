@@ -10,6 +10,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 
 from .const import DOMAIN
+from .device import model_from_serial_number
 
 # TODO List the platforms that you want to support.
 # For your initial PR, limit it to 1 platform.
@@ -38,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         identifiers={(DOMAIN, eco_ref)},  # Use eco_ref or another unique identifier
         name=boitier_name,
         manufacturer="Ecobulles",
-        model="Ecobulles",
+        model=model_from_serial_number(num_serie),
         sw_version=firmware_version,
         serial_number=num_serie,
         connections={(CONNECTION_NETWORK_MAC, eco_ref)}

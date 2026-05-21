@@ -121,6 +121,11 @@ Entity names are translated from Home Assistant's backend language when the
 entities are first created. Entity IDs and unique IDs stay stable; changing the
 backend language later does not automatically rename already-created entities.
 
+The Ecobulles API does not currently expose an explicit model/gamme field. The
+integration therefore infers the device model from the serial number prefix when
+possible: `X...` is treated as `Ecobulles Expert`, `E...` as `Ecobulles Équilibre`,
+and unknown prefixes remain simply `Ecobulles`.
+
 ## Français
 
 ### Installation
@@ -253,3 +258,8 @@ Les noms des entités sont traduits selon la langue backend de Home Assistant au
 moment de leur première création. Les entity IDs et unique IDs restent stables ;
 changer la langue backend plus tard ne renomme pas automatiquement les entités
 déjà créées.
+
+L'API Ecobulles n'expose pas actuellement de champ explicite pour le modèle ou
+la gamme. L'intégration déduit donc le modèle depuis le préfixe du numéro de
+série lorsque c'est possible : `X...` devient `Ecobulles Expert`, `E...` devient
+`Ecobulles Équilibre`, et les préfixes inconnus restent simplement `Ecobulles`.

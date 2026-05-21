@@ -4,8 +4,10 @@ The script queries precise time windows instead of relying on Home Assistant
 history exports. It never prints the password.
 
 Examples:
-    $env:ECOBULLES_EMAIL="you@example.com"
-    $env:ECOBULLES_PASSWORD="secret"
+    # .env
+    ECOBULLES_EMAIL=you@example.com
+    ECOBULLES_PASSWORD=secret
+
     python scripts/analyze_co2_api_history.py --start "2026-05-17 00:00:00" --stop "2026-05-22 00:00:00" --bucket-minutes 5
 
     python scripts/analyze_co2_api_history.py --eco-ref "..." --start "2026-05-17 00:00:00" --days 2
@@ -20,8 +22,17 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 import os
+from pathlib import Path
+import sys
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+ROOT = Path(__file__).resolve().parents[1]
+ENV_PATH = ROOT / ".env"
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from env_helpers import load_dotenv
 
 
 BASE_URL = "https://ecobulles.agom.net/cmd/"
@@ -225,6 +236,7 @@ def print_analysis(windows: list[WindowUsage]) -> None:
 
 def main() -> int:
     """Run the analysis."""
+    load_dotenv(ENV_PATH)
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", default=os.getenv("ECOBULLES_EMAIL"))
     parser.add_argument("--password", default=os.getenv("ECOBULLES_PASSWORD"))
