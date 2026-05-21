@@ -24,6 +24,13 @@ Before pushing changes, run:
 python .\scripts\check_integration.py
 ```
 
+To compare the live Ecobulles API value with the official app, create a local
+`.env` file with `ECOBULLES_EMAIL=...` and `ECOBULLES_PASSWORD=...`, then run:
+
+```powershell
+python .\scripts\check_live_usage.py
+```
+
 This performs a syntax compilation pass for the integration and exercises the
 water-accounting logic that keeps lifetime usage monotonic across CO2 bottle
 changes.
@@ -57,6 +64,13 @@ creates the expected entities, and remains publishable as the project evolves.
 | `Ecobulles Water Usage` | The value reported by Ecobulles for the current CO2 bottle cycle. It resets to `0` when the bottle is changed, although by the next refresh it may already be a small value such as `2 L` or `10 L`. |
 | `Ecobulles Water Usage Before Current CO2 Bottle` | The sum of all *finished* bottle cycles that this integration has already observed. It only increases when a bottle change is detected. |
 | `Ecobulles Water Usage Total` | The immutable lifetime total reconstructed by the integration: `completed bottle cycles + current bottle cycle`. This is the best water sensor to use for long-term statistics / dashboards because it never decreases. |
+
+The integration polls Ecobulles every minute and asks the cloud API for data up
+to the current minute. This avoids delaying each update until the next closed
+hour, which would make Home Assistant assign water used between `00:00` and
+`01:00` to the `01:00`-`02:00` Energy dashboard bucket. If the Ecobulles cloud
+itself only publishes a value after the hour has closed, Home Assistant will
+still record the increase when it first becomes visible.
 
 Example:
 
@@ -110,6 +124,14 @@ Avant de pousser des changements, lancez :
 python .\scripts\check_integration.py
 ```
 
+Pour comparer la valeur live de l'API Ecobulles avec l'application officielle,
+cree un fichier local `.env` avec `ECOBULLES_EMAIL=...` et
+`ECOBULLES_PASSWORD=...`, puis lance :
+
+```powershell
+python .\scripts\check_live_usage.py
+```
+
 Cette commande compile l'intégration et vérifie la logique de comptage de l'eau
 qui conserve une consommation totale monotone malgré les changements de bouteille
 de CO2.
@@ -144,6 +166,14 @@ crée les bonnes entités et reste publiable au fil de son évolution.
 | `Consommation d'eau` | La valeur reportée par Ecobulles pour le cycle de la bouteille de CO2 actuelle. Elle revient à `0` lors d'un changement de bouteille, même si au prochain rafraîchissement elle peut déjà valoir quelques litres, par exemple `2 L` ou `10 L`. |
 | `Consommation d'eau avant la bouteille de CO2 actuelle` | La somme de tous les cycles de bouteilles *terminés* déjà observés par l'intégration. Elle n'augmente que lorsqu'un changement de bouteille est détecté. |
 | `Consommation d'eau totale` | Le total immuable reconstruit par l'intégration : `cycles de bouteilles terminés + cycle actuel`. C'est le meilleur capteur à utiliser pour les statistiques longues / tableaux de bord, car il ne diminue jamais. |
+
+L'intégration interroge Ecobulles toutes les minutes et demande a l'API cloud les
+donnees disponibles jusqu'a la minute courante. Cela evite de retarder chaque
+mise a jour jusqu'a l'heure pleine suivante, ce qui ferait classer par Home
+Assistant l'eau consommee entre `00:00` et `01:00` dans le creneau Energy
+Dashboard `01:00`-`02:00`. Si le cloud Ecobulles ne publie lui-meme la valeur
+qu'apres la fin de l'heure, Home Assistant enregistrera tout de meme
+l'augmentation au moment ou elle devient visible.
 
 Exemple :
 

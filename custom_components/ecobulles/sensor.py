@@ -148,7 +148,7 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             _LOGGER,
             name=f"Ecobulles {eco_ref}",
-            update_interval=timedelta(minutes=5),
+            update_interval=timedelta(minutes=1),
         )
 
     async def _load_water_usage_state(self) -> WaterUsageState:

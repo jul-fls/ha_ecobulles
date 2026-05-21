@@ -88,7 +88,7 @@ class EcobullesClient:
                 "eco_ref": eco_ref,
                 "eau": "1",
                 "startdate": "2000-01-01 00:00:00",
-                "stopdate": current_time.strftime("%Y-%m-%d %H:00:00"),
+                "stopdate": current_time.strftime("%Y-%m-%d %H:%M:%S"),
             },
         )
         if data_raw is None:
