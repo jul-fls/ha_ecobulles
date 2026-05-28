@@ -6,6 +6,7 @@ import hashlib
 import logging
 from typing import Any
 
+from aiohttp import ClientError
 from aiohttp import ClientSession
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util.dt import now as hass_now
@@ -43,13 +44,24 @@ class EcobullesClient:
             "Content-Type": "application/x-www-form-urlencoded",
             "User-Agent": self.USER_AGENT,
         }
-        async with self._session.post(
-            f"{self.BASE_URL}{endpoint}", data=payload, headers=headers
-        ) as response:
-            if response.status != 200:
-                _LOGGER.warning("Ecobulles request failed for %s: %s", endpoint, response.status)
-                return None
-            return await response.json(content_type=None)
+        try:
+            async with self._session.post(
+                f"{self.BASE_URL}{endpoint}", data=payload, headers=headers
+            ) as response:
+                if response.status != 200:
+                    body = await response.text()
+                    _LOGGER.warning(
+                        "Ecobulles request failed for %s: HTTP %s; body=%s",
+                        endpoint,
+                        response.status,
+                        body[:500],
+                    )
+                    return None
+                return await response.json(content_type=None)
+        except TimeoutError as err:
+            raise TimeoutError(f"Ecobulles request timed out for {endpoint}") from err
+        except ClientError as err:
+            raise RuntimeError(f"Ecobulles request failed for {endpoint}: {err}") from err
 
     async def authenticate(self, email: str, password: str):
         """Authenticate with the Ecobulles API."""

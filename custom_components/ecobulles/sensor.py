@@ -172,14 +172,22 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch Ecobulles data and update cumulative water accounting."""
         try:
-            async with async_timeout.timeout(10):
-                usage, device, login_payload = await asyncio.gather(
+            async with async_timeout.timeout(15):
+                usage, device = await asyncio.gather(
                     self.api.get_total_water_and_co2_usage(self.eco_ref),
                     self.api.get_device_info(self.eco_ref),
-                    self._async_fetch_login_payload(),
                 )
+            login_payload = await self._async_fetch_login_payload()
+        except TimeoutError as err:
+            raise UpdateFailed(str(err) or "Timed out fetching Ecobulles data") from err
         except Exception as err:
-            raise UpdateFailed(f"Error fetching Ecobulles data: {err}") from err
+            _LOGGER.exception(
+                "Unexpected error while fetching required Ecobulles data for %s",
+                self.eco_ref,
+            )
+            raise UpdateFailed(
+                f"{type(err).__name__} while fetching Ecobulles data: {err!s}"
+            ) from err
 
         if usage is None or device is None:
             raise UpdateFailed("Ecobulles API returned incomplete data")
@@ -223,9 +231,14 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not email or not password:
             return None
         try:
-            return await self.api.get_login_payload(email, password)
+            async with async_timeout.timeout(5):
+                return await self.api.get_login_payload(email, password)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Unable to fetch optional Ecobulles alert payload: %s", err)
+            _LOGGER.debug(
+                "Unable to fetch optional Ecobulles alert payload for %s: %s",
+                self.eco_ref,
+                err,
+            )
             return None
 
 
