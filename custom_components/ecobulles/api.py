@@ -10,6 +10,8 @@ from aiohttp import ClientSession
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util.dt import now as hass_now
 
+from .auth_ids import generate_registration_id, generate_sand
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -18,18 +20,14 @@ class EcobullesClient:
 
     BASE_URL = "https://ecobulles.agom.net/cmd/"
     USER_AGENT = "Ecobulles"
-    REGISTRATION_ID = (
-        "cI7TFH55eX4:APA91bE-DyQ1QgCIcO2BBfIL1MiAl_afxm9t4o4jQIyXazceonlcmqk"
-        "UF7BHwZ4J_r06EpVxOY0n8bOIm-0a7VpjItHLBM61-fdEBj4Yy_gR5dyDbyvGtI7"
-        "YbFHwqfGTwN-eg_4kyKy4"
-    )
-    SAND = "B3A2F41213"
 
     def __init__(self, hass=None, session: ClientSession | None = None) -> None:
         """Initialize the client."""
         self._session = session or (
             async_get_clientsession(hass) if hass is not None else None
         )
+        self._registration_id = generate_registration_id()
+        self._sand = generate_sand()
 
     @staticmethod
     def hash_password(password: str) -> str:
@@ -55,15 +53,7 @@ class EcobullesClient:
 
     async def authenticate(self, email: str, password: str):
         """Authenticate with the Ecobulles API."""
-        content = await self._post(
-            "loginAppUserCo2.php",
-            {
-                "email": email,
-                "password": self.hash_password(password),
-                "registrationId": self.REGISTRATION_ID,
-                "sand": self.SAND,
-            },
-        )
+        content = await self.get_login_payload(email, password)
         if int((content or {}).get("status", 0)) != 1:
             return False, None, None, None
 
@@ -73,6 +63,18 @@ class EcobullesClient:
             data.get("userid"),
             data.get("eco_ref"),
             data.get("conso", {}).get("boite", {}).get("name", "").strip(),
+        )
+
+    async def get_login_payload(self, email: str, password: str) -> dict[str, Any] | None:
+        """Authenticate and return the full login payload."""
+        return await self._post(
+            "loginAppUserCo2.php",
+            {
+                "email": email,
+                "password": self.hash_password(password),
+                "registrationId": self._registration_id,
+                "sand": self._sand,
+            },
         )
 
     async def get_device_info(self, eco_ref: str) -> dict[str, Any] | None:

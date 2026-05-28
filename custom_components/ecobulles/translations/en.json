@@ -18,7 +18,8 @@
           "co2_pressure_bar": "CO2 pressure (bar)",
           "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
           "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
-          "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)"
+          "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)",
+          "poll_interval_seconds": "Polling interval (seconds)"
         },
         "sections": {
           "advanced_options": {
@@ -37,7 +38,8 @@
           "co2_pressure_bar": "CO2 pressure (bar)",
           "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
           "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
-          "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)"
+          "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)",
+          "poll_interval_seconds": "Polling interval (seconds)"
         },
         "sections": {
           "advanced_options": {
@@ -82,6 +84,9 @@
       },
       "estimated_co2_bottle_usage": {
         "name": "Estimated CO2 bottle usage"
+      },
+      "active_alerts": {
+        "name": "Active alerts"
       }
     },
     "switch": {

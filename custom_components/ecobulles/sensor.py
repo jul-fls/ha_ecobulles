@@ -15,6 +15,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfTime, UnitOfVolume
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -32,6 +33,7 @@ from .const import (
     CONF_CO2_PRESSURE_BAR,
     CONF_CO2_REFERENCE_PULSE_MS_PER_L,
     CONF_ENABLE_RAW_CO2_SENSOR,
+    CONF_POLL_INTERVAL_SECONDS,
     DOMAIN,
 )
 from .water_usage import WaterUsageState
@@ -125,6 +127,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         hass,
         EcobullesClient(hass),
         eco_ref,
+        entry.data,
     )
     await coordinator.async_config_entry_first_refresh()
 
@@ -141,23 +144,28 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         )
     )
     entities.append(EstimatedCO2BottleUsageSensor(coordinator, eco_ref, entry.data))
+    entities.append(ActiveAlertsSensor(coordinator, eco_ref))
     async_add_entities(entities)
 
 
 class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Fetch API data and own durable Ecobulles accounting state."""
 
-    def __init__(self, hass, api: EcobullesClient, eco_ref: str) -> None:
+    def __init__(
+        self, hass, api: EcobullesClient, eco_ref: str, config: dict[str, Any]
+    ) -> None:
         """Initialize the coordinator."""
         self.api = api
         self.eco_ref = eco_ref
+        self.config = config
         self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{eco_ref}.water_usage")
         self._water_usage_state: WaterUsageState | None = None
+        poll_interval_seconds = int(config.get(CONF_POLL_INTERVAL_SECONDS, 120) or 120)
         super().__init__(
             hass,
             _LOGGER,
             name=f"Ecobulles {eco_ref}",
-            update_interval=timedelta(minutes=1),
+            update_interval=timedelta(seconds=max(30, poll_interval_seconds)),
         )
 
     async def _load_water_usage_state(self) -> WaterUsageState:
@@ -172,6 +180,7 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             async with async_timeout.timeout(10):
                 usage = await self.api.get_total_water_and_co2_usage(self.eco_ref)
                 device = await self.api.get_device_info(self.eco_ref)
+                login_payload = await self._async_fetch_login_payload()
         except Exception as err:
             raise UpdateFailed(f"Error fetching Ecobulles data: {err}") from err
 
@@ -179,6 +188,7 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise UpdateFailed("Ecobulles API returned incomplete data")
 
         box = device.get("data", {}).get("boite", {})
+        active_alerts = _active_alerts_from_payloads(device, login_payload)
         water_state = await self._load_water_usage_state()
         bottle_changed = water_state.apply_cycle_value(usage["total_eau"])
         await self._store.async_save(water_state.as_dict())
@@ -204,8 +214,18 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "suspended_date": _isoish(box.get("suspended_date")),
             "firm_ver": box.get("firm_ver"),
             "last_alert": box.get("last_alert"),
+            "active_alerts": active_alerts,
+            "active_alert_count": len(active_alerts),
             "name": box.get("name"),
         }
+
+    async def _async_fetch_login_payload(self) -> dict[str, Any] | None:
+        """Fetch login payload because current alerts are exposed there."""
+        email = self.config.get(CONF_EMAIL)
+        password = self.config.get(CONF_PASSWORD)
+        if not email or not password:
+            return None
+        return await self.api.get_login_payload(email, password)
 
 
 def _isoish(value: str | None) -> str | None:
@@ -217,6 +237,20 @@ def _parse_timestamp(value: str | None) -> datetime | None:
     """Parse an API timestamp string for Home Assistant's timestamp device class."""
     parsed = parse_datetime(value) if value else None
     return as_utc(parsed) if parsed else None
+
+
+def _active_alerts_from_payloads(
+    device_payload: dict[str, Any] | None, login_payload: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """Extract currently active alerts from known API payload locations."""
+    candidates = []
+    if device_payload:
+        candidates.extend(device_payload.get("data", {}).get("alert") or [])
+    if login_payload:
+        candidates.extend(
+            login_payload.get("data", {}).get("conso", {}).get("alert") or []
+        )
+    return [alert for alert in candidates if str(alert.get("currently")) == "1"]
 
 
 
@@ -266,6 +300,32 @@ class EcobullesDescribedSensor(EcobullesBaseSensor):
     def native_value(self):
         """Return the current sensor value."""
         return self.entity_description.value_fn(self.coordinator.data)
+
+
+class ActiveAlertsSensor(EcobullesBaseSensor):
+    """Expose the number of currently active Ecobulles alerts."""
+
+    _attr_translation_key = "active_alerts"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:alert-circle-outline"
+
+    def __init__(self, coordinator: EcobullesCoordinator, eco_ref: str) -> None:
+        """Initialize the active alerts sensor."""
+        super().__init__(coordinator, eco_ref)
+        self._attr_unique_id = f"{eco_ref}_active_alerts"
+
+    @property
+    def native_value(self) -> int:
+        """Return the active alert count."""
+        return int(self.coordinator.data.get("active_alert_count", 0))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose active alert details."""
+        return {
+            **super().extra_state_attributes,
+            "active_alerts": self.coordinator.data.get("active_alerts", []),
+        }
 
 
 class CO2InjectionTimeSensor(EcobullesBaseSensor):

@@ -16,6 +16,7 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
+import sys
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -23,15 +24,16 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
+SCRIPTS_DIR = Path(__file__).resolve().parent
+AUTH_IDS_DIR = ROOT / "custom_components" / "ecobulles"
+for path in (SCRIPTS_DIR, AUTH_IDS_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+from auth_ids import generate_registration_id, generate_sand
 
 BASE_URL = "https://ecobulles.agom.net/cmd/"
 USER_AGENT = "Ecobulles"
-REGISTRATION_ID = (
-    "cI7TFH55eX4:APA91bE-DyQ1QgCIcO2BBfIL1MiAl_afxm9t4o4jQIyXazceonlcmqk"
-    "UF7BHwZ4J_r06EpVxOY0n8bOIm-0a7VpjItHLBM61-fdEBj4Yy_gR5dyDbyvGtI7"
-    "YbFHwqfGTwN-eg_4kyKy4"
-)
-SAND = "B3A2F41213"
 
 
 def load_env(path: Path) -> dict[str, str]:
@@ -89,8 +91,8 @@ def main() -> int:
         {
             "email": email,
             "password": sha1(password),
-            "registrationId": REGISTRATION_ID,
-            "sand": SAND,
+            "registrationId": generate_registration_id(),
+            "sand": generate_sand(),
         },
     )
     if int(login.get("status", 0)) != 1:

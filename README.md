@@ -58,6 +58,9 @@ estimated active flow g/min = estimated dose mg/L ÷ pulse ms/L × 60
 CO2 used ≈ injection open time × estimated active flow
 ```
 
+Advanced settings also include the polling interval in seconds. The default is
+`120` seconds.
+
 ### CI
 
 The GitHub Actions pipeline intentionally avoids real Ecobulles credentials.
@@ -113,6 +116,7 @@ Ecobulles Water Usage Total                     = 165901 L
 | --- | --- |
 | `Ecobulles Install Date` | Installation timestamp reported by the device. |
 | `Ecobulles Last Date Receive` | Last timestamp at which the device reported data. |
+| `Ecobulles Active Alerts` | Number of currently active Ecobulles alerts. Alert payloads are exposed as attributes for debugging / diagnosis. |
 | `Ecobulles Activated` | Activation state reported by the device. |
 | `Ecobulles Locked` | Lock state reported by the device. |
 | `Ecobulles Suspended` | Suspension state reported by the device. |
@@ -194,6 +198,9 @@ débit actif estimé g/min = dose estimée mg/L ÷ impulsion ms/L × 60
 CO2 utilisé ≈ temps d'ouverture d'injection × débit actif estimé
 ```
 
+Les réglages avancés contiennent aussi l'intervalle de rafraîchissement en
+secondes. La valeur par défaut est `120` secondes.
+
 ### CI
 
 Le pipeline GitHub Actions évite volontairement d'utiliser de vrais identifiants
@@ -250,6 +257,7 @@ Consommation d'eau totale                              = 165901 L
 | --- | --- |
 | `Date d'installation` | Horodatage d'installation reporté par l'appareil. |
 | `Dernière réception` | Dernier horodatage auquel l'appareil a transmis des données. |
+| `Alertes actives` | Nombre d'alertes Ecobulles actuellement actives. Le détail des alertes est exposé en attributs pour diagnostic. |
 | `Activé` | État d'activation reporté par l'appareil. |
 | `Verrouillé` | État de verrouillage reporté par l'appareil. |
 | `Suspendu` | État de suspension reporté par l'appareil. |

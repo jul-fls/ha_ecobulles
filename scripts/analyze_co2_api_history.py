@@ -2,15 +2,6 @@
 
 The script queries precise time windows instead of relying on Home Assistant
 history exports. It never prints the password.
-
-Examples:
-    # .env
-    ECOBULLES_EMAIL=you@example.com
-    ECOBULLES_PASSWORD=secret
-
-    python scripts/analyze_co2_api_history.py --start "2026-05-17 00:00:00" --stop "2026-05-22 00:00:00" --bucket-minutes 5
-
-    python scripts/analyze_co2_api_history.py --eco-ref "..." --start "2026-05-17 00:00:00" --days 2
 """
 
 from __future__ import annotations
@@ -29,20 +20,17 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+SCRIPTS_DIR = Path(__file__).resolve().parent
+AUTH_IDS_DIR = ROOT / "custom_components" / "ecobulles"
+for path in (SCRIPTS_DIR, AUTH_IDS_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
+from auth_ids import generate_registration_id, generate_sand
 from env_helpers import load_dotenv
-
 
 BASE_URL = "https://ecobulles.agom.net/cmd/"
 USER_AGENT = "Ecobulles"
-REGISTRATION_ID = (
-    "cI7TFH55eX4:APA91bE-DyQ1QgCIcO2BBfIL1MiAl_afxm9t4o4jQIyXazceonlcmqk"
-    "UF7BHwZ4J_r06EpVxOY0n8bOIm-0a7VpjItHLBM61-fdEBj4Yy_gR5dyDbyvGtI7"
-    "YbFHwqfGTwN-eg_4kyKy4"
-)
-SAND = "B3A2F41213"
 
 
 @dataclass(frozen=True)
@@ -87,19 +75,25 @@ def api_post(endpoint: str, payload: dict[str, str]) -> dict:
         return json.loads(response.read().decode())
 
 
-def authenticate(email: str, password: str) -> str:
-    """Authenticate and return eco_ref."""
-    content = api_post(
+def authenticate_payload(email: str, password: str) -> dict:
+    """Authenticate and return the raw payload."""
+    return api_post(
         "loginAppUserCo2.php",
         {
             "email": email,
             "password": hashlib.sha1(password.encode("utf-8")).hexdigest(),
-            "registrationId": REGISTRATION_ID,
-            "sand": SAND,
+            "registrationId": generate_registration_id(),
+            "sand": generate_sand(),
         },
     )
+
+
+def authenticate(email: str, password: str) -> str:
+    """Authenticate and return eco_ref."""
+    content = authenticate_payload(email, password)
     if int(content.get("status", 0)) != 1:
         raise SystemExit("Ecobulles authentication failed.")
+    print("Authenticated using generated client identifiers.")
     return content["data"]["eco_ref"]
 
 
@@ -127,13 +121,8 @@ def fetch_usage(eco_ref: str, start: datetime, stop: datetime) -> WindowUsage:
         if point.get("date"):
             sample_time = datetime.strptime(point["date"], "%Y/%m/%d %H:%M:%S")
 
-    # For broad historical windows, the API's `infoconso.total_*` values can be
-    # cumulative/aggregated in a way that is not safe to sum across buckets.
-    # Prefer graph points when present because they are the actual filtered
-    # period samples.
     water_liters = graph_water if graph else api_total_water
     raw_co2 = graph_co2 if graph else api_total_co2
-
     return WindowUsage(
         start=start,
         stop=stop,

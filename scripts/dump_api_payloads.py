@@ -26,19 +26,17 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+SCRIPTS_DIR = Path(__file__).resolve().parent
+AUTH_IDS_DIR = ROOT / "custom_components" / "ecobulles"
+for path in (SCRIPTS_DIR, AUTH_IDS_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
+from auth_ids import generate_registration_id, generate_sand
 from env_helpers import load_dotenv
 
 BASE_URL = "https://ecobulles.agom.net/cmd/"
 USER_AGENT = "Ecobulles"
-REGISTRATION_ID = (
-    "cI7TFH55eX4:APA91bE-DyQ1QgCIcO2BBfIL1MiAl_afxm9t4o4jQIyXazceonlcmqk"
-    "UF7BHwZ4J_r06EpVxOY0n8bOIm-0a7VpjItHLBM61-fdEBj4Yy_gR5dyDbyvGtI7"
-    "YbFHwqfGTwN-eg_4kyKy4"
-)
-SAND = "B3A2F41213"
 REDACTED = "***REDACTED***"
 
 
@@ -64,8 +62,8 @@ def authenticate(email: str, password: str) -> dict:
         {
             "email": email,
             "password": hashlib.sha1(password.encode("utf-8")).hexdigest(),
-            "registrationId": REGISTRATION_ID,
-            "sand": SAND,
+            "registrationId": generate_registration_id(),
+            "sand": generate_sand(),
         },
     )
 
@@ -118,6 +116,7 @@ def main() -> int:
         login_payload = authenticate(args.email, args.password)
         if int(login_payload.get("status", 0)) != 1:
             raise SystemExit("Ecobulles authentication failed.")
+        print("Authenticated using generated client identifiers.")
         eco_ref = login_payload["data"]["eco_ref"]
 
     now = datetime.now().replace(microsecond=0)

@@ -121,6 +121,7 @@ celerybeat.pid
 
 # Environments
 .env
+ecobulles_api_dump*.json
 .venv
 env/
 venv/

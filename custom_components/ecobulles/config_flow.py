@@ -27,6 +27,7 @@ from .const import (
     CONF_CO2_PRESSURE_BAR,
     CONF_CO2_REFERENCE_PULSE_MS_PER_L,
     CONF_ENABLE_RAW_CO2_SENSOR,
+    CONF_POLL_INTERVAL_SECONDS,
     DOMAIN,
 )
 
@@ -69,6 +70,10 @@ def _config_schema(defaults: dict[str, Any]) -> vol.Schema:
                                 CONF_CO2_REFERENCE_PULSE_MS_PER_L, 1500
                             ),
                         ): vol.Coerce(float),
+                        vol.Optional(
+                            CONF_POLL_INTERVAL_SECONDS,
+                            default=defaults.get(CONF_POLL_INTERVAL_SECONDS, 120),
+                        ): vol.All(vol.Coerce(int), vol.Range(min=30)),
                     }
                 ),
                 {"collapsed": True},
