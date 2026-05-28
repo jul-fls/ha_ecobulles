@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import asyncio
 import logging
 from typing import Any, Callable
 
@@ -123,13 +124,7 @@ DIAGNOSTIC_SENSORS: tuple[EcobullesSensorDescription, ...] = (
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
     """Set up Ecobulles sensors from a config entry."""
     eco_ref = entry.data["eco_ref"]
-    coordinator = EcobullesCoordinator(
-        hass,
-        EcobullesClient(hass),
-        eco_ref,
-        entry.data,
-    )
-    await coordinator.async_config_entry_first_refresh()
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     entities: list[SensorEntity] = [
         EcobullesDescribedSensor(coordinator, eco_ref, description)
@@ -178,9 +173,11 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fetch Ecobulles data and update cumulative water accounting."""
         try:
             async with async_timeout.timeout(10):
-                usage = await self.api.get_total_water_and_co2_usage(self.eco_ref)
-                device = await self.api.get_device_info(self.eco_ref)
-                login_payload = await self._async_fetch_login_payload()
+                usage, device, login_payload = await asyncio.gather(
+                    self.api.get_total_water_and_co2_usage(self.eco_ref),
+                    self.api.get_device_info(self.eco_ref),
+                    self._async_fetch_login_payload(),
+                )
         except Exception as err:
             raise UpdateFailed(f"Error fetching Ecobulles data: {err}") from err
 
@@ -225,7 +222,11 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         password = self.config.get(CONF_PASSWORD)
         if not email or not password:
             return None
-        return await self.api.get_login_payload(email, password)
+        try:
+            return await self.api.get_login_payload(email, password)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Unable to fetch optional Ecobulles alert payload: %s", err)
+            return None
 
 
 def _isoish(value: str | None) -> str | None:

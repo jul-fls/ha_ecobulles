@@ -9,8 +9,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 
+from .api import EcobullesClient
 from .const import DOMAIN
 from .device import model_from_serial_number
+from .sensor import EcobullesCoordinator
 
 # TODO List the platforms that you want to support.
 # For your initial PR, limit it to 1 platform.
@@ -46,7 +48,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     )
 
     # Store additional device-specific information in hass.data for internal use
+    coordinator = EcobullesCoordinator(
+        hass,
+        EcobullesClient(hass),
+        eco_ref,
+        entry.data,
+    )
+    await coordinator.async_config_entry_first_refresh()
+
     hass.data[DOMAIN][entry.entry_id] = {
+        "coordinator": coordinator,
         "eco_ref": eco_ref,
         "install_date": entry.data.get("install_date"),
         "last_date_receive": entry.data.get("last_date_receive"),
