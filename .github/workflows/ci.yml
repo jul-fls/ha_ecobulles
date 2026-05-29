@@ -34,11 +34,14 @@ jobs:
       - name: Run pytest
         run: pytest -q --cov --cov-report=term-missing --cov-report=json:coverage.json
       - name: Upload coverage report
+        if: always()
         uses: actions/upload-artifact@main
         with:
           name: coverage-json
           path: coverage.json
+          if-no-files-found: ignore
       - name: Upload coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v5
         with:
           files: coverage.json

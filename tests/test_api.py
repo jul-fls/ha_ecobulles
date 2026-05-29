@@ -1,9 +1,11 @@
 """Tests for Ecobulles API request shaping."""
 
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from aiohttp import ClientError
 
 from custom_components.ecobulles.api import EcobullesClient
 
@@ -89,3 +91,73 @@ async def test_authenticate_failure() -> None:
             None,
             None,
         )
+
+
+@pytest.mark.asyncio
+async def test_authenticate_missing_payload() -> None:
+    """Missing authentication payload is treated as failed authentication."""
+    client = EcobullesClient(session=object())
+    with patch.object(client, "get_login_payload", AsyncMock(return_value=None)):
+        assert await client.authenticate("user@example.com", "bad") == (
+            False,
+            None,
+            None,
+            None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_usage_request_handles_missing_payload() -> None:
+    """Missing usage payload returns no data."""
+    client = EcobullesClient(session=object())
+    with patch.object(client, "_post", AsyncMock(return_value=None)):
+        assert await client.get_total_water_and_co2_usage("eco-ref") is None
+
+
+@pytest.mark.asyncio
+async def test_usage_request_handles_empty_graph() -> None:
+    """Usage payloads without graph data still expose cumulative totals."""
+    client = EcobullesClient(session=object())
+    with patch.object(
+        client,
+        "_post",
+        AsyncMock(
+            return_value={
+                "data": {
+                    "infoconso": {
+                        "total_gas": "1500",
+                        "total_eau": "42",
+                        "graph": [],
+                    }
+                }
+            }
+        ),
+    ):
+        assert await client.get_total_water_and_co2_usage("eco-ref") == {
+            "total_gas": 1500,
+            "total_eau": 42,
+            "last_updated": None,
+        }
+
+
+@pytest.mark.asyncio
+async def test_post_requires_session() -> None:
+    """The API client needs an injected Home Assistant session."""
+    client = EcobullesClient()
+    with pytest.raises(RuntimeError, match="requires a Home Assistant session"):
+        await client._post("endpoint.php", {})
+
+
+@pytest.mark.asyncio
+async def test_post_wraps_client_errors() -> None:
+    """Aiohttp client errors are normalized."""
+    session = SimpleNamespace()
+    client = EcobullesClient(session=session)
+    with patch.object(
+        session,
+        "post",
+        side_effect=ClientError("network down"),
+        create=True,
+    ):
+        with pytest.raises(RuntimeError, match="Ecobulles request failed"):
+            await client._post("endpoint.php", {})
