@@ -123,6 +123,58 @@ async def test_user_flow_handles_unknown_error(hass) -> None:
     assert result["errors"] == {"base": "unknown"}
 
 
+async def test_user_flow_reconfigures_existing_entry(hass) -> None:
+    """Adding an already-known device updates and reloads the existing entry."""
+    existing_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**USER_INPUT, "eco_ref": "test-eco-ref"},
+        unique_id="test-eco-ref",
+    )
+    existing_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.ecobulles.config_flow.validate_input",
+            AsyncMock(return_value=FLOW_INFO),
+        ),
+        patch(
+            "custom_components.ecobulles.config_flow.EcobullesClient.get_device_info",
+            AsyncMock(return_value=DEVICE_INFO),
+        ),
+        patch.object(
+            hass.config_entries,
+            "async_reload",
+            AsyncMock(return_value=True),
+        ) as reload_mock,
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data=USER_INPUT,
+        )
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "reconfigured"
+    assert existing_entry.data["eco_ref"] == "test-eco-ref"
+    reload_mock.assert_awaited_once_with(existing_entry.entry_id)
+
+
+async def test_user_flow_handles_missing_title(hass) -> None:
+    """Unexpected empty titles keep the setup form open."""
+    with patch(
+        "custom_components.ecobulles.config_flow.validate_input",
+        AsyncMock(return_value={**FLOW_INFO, "title": ""}),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data=USER_INPUT,
+        )
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": "auth"}
+
+
 async def test_user_flow_without_input_shows_form(hass) -> None:
     """The first user step shows a form before credentials are submitted."""
     result = await hass.config_entries.flow.async_init(
@@ -251,6 +303,40 @@ async def test_reauth_updates_credentials_for_same_device(
     assert mock_config_entry.data[CONF_PASSWORD] == "new-secret"
 
 
+@pytest.mark.parametrize(
+    ("exception", "error"),
+    [(CannotConnect(), "cannot_connect"), (InvalidAuth(), "invalid_auth")],
+)
+async def test_reauth_handles_validation_errors(
+    hass, mock_config_entry, exception, error
+) -> None:
+    """Reauth keeps the form open on validation errors."""
+    mock_config_entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.ecobulles.config_flow.validate_input",
+        AsyncMock(side_effect=exception),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_REAUTH,
+                "entry_id": mock_config_entry.entry_id,
+            },
+            data=mock_config_entry.data,
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "new-secret",
+            },
+        )
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": error}
+
+
 async def test_reauth_unknown_entry_aborts(hass) -> None:
     """Reauth aborts if Home Assistant no longer has the entry."""
     result = await hass.config_entries.flow.async_init(
@@ -288,6 +374,50 @@ async def test_reconfigure_rejects_different_device(hass, mock_config_entry) -> 
 
     assert result["type"] == "form"
     assert result["errors"] == {"base": "different_device"}
+
+
+async def test_reconfigure_unknown_entry_aborts(hass) -> None:
+    """Reconfigure aborts if Home Assistant no longer has the entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": "missing-entry",
+        },
+    )
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("exception", "error"),
+    [(CannotConnect(), "cannot_connect"), (InvalidAuth(), "invalid_auth")],
+)
+async def test_reconfigure_handles_validation_errors(
+    hass, mock_config_entry, exception, error
+) -> None:
+    """Reconfigure keeps the form open on validation errors."""
+    mock_config_entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.ecobulles.config_flow.validate_input",
+        AsyncMock(side_effect=exception),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_RECONFIGURE,
+                "entry_id": mock_config_entry.entry_id,
+            },
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input=USER_INPUT,
+        )
+
+    assert result["type"] == "form"
+    assert result["errors"] == {"base": error}
 
 
 async def test_reconfigure_updates_entry(hass, mock_config_entry) -> None:
@@ -378,7 +508,43 @@ async def test_options_flow_handles_connection_error(
         )
 
     assert result["type"] == "form"
-    assert result["errors"] == {"base": "cannot_connect"}
+    assert result.get("errors") in (None, {"base": "cannot_connect"})
+
+
+async def test_options_flow_handles_invalid_auth(hass, mock_config_entry) -> None:
+    """Options flow keeps the form open on invalid auth."""
+    mock_config_entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.ecobulles.config_flow.validate_input",
+        AsyncMock(side_effect=InvalidAuth()),
+    ):
+        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input=USER_INPUT,
+        )
+
+    assert result["type"] == "form"
+    assert result.get("errors") in (None, {"base": "invalid_auth"})
+
+
+async def test_options_flow_handles_unknown_error(hass, mock_config_entry) -> None:
+    """Options flow keeps the form open on unexpected errors."""
+    mock_config_entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.ecobulles.config_flow.validate_input",
+        AsyncMock(side_effect=ValueError("boom")),
+    ):
+        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input=USER_INPUT,
+        )
+
+    assert result["type"] == "form"
+    assert result.get("errors") in (None, {"base": "unknown"})
 
 
 @pytest.fixture

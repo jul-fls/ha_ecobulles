@@ -10,6 +10,27 @@ from aiohttp import ClientError
 from custom_components.ecobulles.api import EcobullesClient
 
 
+class _FakeResponse:
+    """Small async context manager standing in for aiohttp responses."""
+
+    def __init__(self, status: int, payload: dict | None = None, text: str = "") -> None:
+        self.status = status
+        self._payload = payload or {}
+        self._text = text
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    async def json(self, content_type=None):
+        return self._payload
+
+    async def text(self) -> str:
+        return self._text
+
+
 @pytest.mark.asyncio
 async def test_usage_request_keeps_current_minute_in_stopdate() -> None:
     """Do not force the API request to the previous closed hour."""
@@ -161,3 +182,55 @@ async def test_post_wraps_client_errors() -> None:
     ):
         with pytest.raises(RuntimeError, match="Ecobulles request failed"):
             await client._post("endpoint.php", {})
+
+
+@pytest.mark.asyncio
+async def test_post_returns_json_payload() -> None:
+    """Successful API requests return decoded JSON."""
+    session = SimpleNamespace(
+        post=AsyncMock(return_value=_FakeResponse(200, {"status": 1}))
+    )
+    session.post = lambda *args, **kwargs: _FakeResponse(200, {"status": 1})
+    client = EcobullesClient(session=session)
+
+    assert await client._post("endpoint.php", {"x": "y"}) == {"status": 1}
+
+
+@pytest.mark.asyncio
+async def test_post_returns_none_on_http_error() -> None:
+    """Non-200 API responses are treated as missing payloads."""
+    session = SimpleNamespace()
+    session.post = lambda *args, **kwargs: _FakeResponse(500, text="server exploded")
+    client = EcobullesClient(session=session)
+
+    assert await client._post("endpoint.php", {"x": "y"}) is None
+
+
+@pytest.mark.asyncio
+async def test_post_wraps_timeouts() -> None:
+    """Timeouts include endpoint context."""
+    session = SimpleNamespace()
+    session.post = lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError)
+    client = EcobullesClient(session=session)
+
+    with pytest.raises(TimeoutError, match="timed out"):
+        await client._post("endpoint.php", {})
+
+
+@pytest.mark.asyncio
+async def test_login_and_device_payload_requests() -> None:
+    """Helper methods shape their API requests."""
+    client = EcobullesClient(session=object())
+    with patch.object(client, "_post", AsyncMock(return_value={"status": 1})) as post:
+        assert await client.get_login_payload("user@example.com", "secret") == {
+            "status": 1
+        }
+        assert await client.get_device_info("eco-ref") == {"status": 1}
+
+    assert post.await_args_list[0].args[0] == "loginAppUserCo2.php"
+    login_payload = post.await_args_list[0].args[1]
+    assert login_payload["email"] == "user@example.com"
+    assert login_payload["password"] == EcobullesClient.hash_password("secret")
+    assert "registrationId" in login_payload
+    assert "sand" in login_payload
+    post.assert_any_await("getAppUserCo2.php", {"eco_ref": "eco-ref"})
