@@ -147,7 +147,7 @@ Instead it runs:
 
 That keeps CI deterministic while still checking that the integration loads,
 creates the expected entities, and remains publishable as the project evolves.
-The pytest job enforces at least 95% integration coverage and uploads
+The pytest job enforces a minimum integration coverage gate and uploads
 `coverage.json` as a workflow artifact. Coverage is also uploaded to Codecov so
 the README badge shows the current percentage dynamically.
 
@@ -364,7 +364,7 @@ Ecobulles. Il exécute :
 
 Cela garde la CI déterministe tout en vérifiant que l'intégration se charge,
 crée les bonnes entités et reste publiable au fil de son évolution.
-Le job pytest impose au moins 95 % de couverture de l'intégration et téléverse
+Le job pytest impose un seuil minimum de couverture de l'intégration et téléverse
 `coverage.json` en artefact de workflow. La couverture est aussi envoyée à
 Codecov afin que le badge du README affiche dynamiquement le pourcentage actuel.
 

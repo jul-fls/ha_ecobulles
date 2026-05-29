@@ -57,14 +57,19 @@ async def test_user_flow_creates_entry(hass) -> None:
             "custom_components.ecobulles.config_flow.EcobullesClient.get_device_info",
             AsyncMock(return_value=DEVICE_INFO),
         ),
+        patch(
+            "custom_components.ecobulles.async_setup_entry",
+            AsyncMock(return_value=True),
+        ),
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
             context={"source": config_entries.SOURCE_USER},
             data=USER_INPUT,
         )
+        await hass.async_block_till_done()
 
-    assert result["type"] == config_entries.FlowResultType.CREATE_ENTRY
+    assert result["type"] == "create_entry"
     assert result["title"] == FLOW_INFO["title"]
     assert result["data"]["eco_ref"] == "test-eco-ref"
 
@@ -81,7 +86,7 @@ async def test_user_flow_handles_connection_error(hass) -> None:
             data=USER_INPUT,
         )
 
-    assert result["type"] == config_entries.FlowResultType.FORM
+    assert result["type"] == "form"
     assert result["errors"] == {"base": "cannot_connect"}
 
 
@@ -109,7 +114,7 @@ async def test_reauth_rejects_different_device(hass, mock_config_entry) -> None:
             },
         )
 
-    assert result["type"] == config_entries.FlowResultType.FORM
+    assert result["type"] == "form"
     assert result["errors"] == {"base": "different_device"}
 
 
