@@ -1,12 +1,15 @@
 {
   "config": {
     "abort": {
-      "already_configured": "L'appareil est déjà configuré"
+      "already_configured": "L'appareil est déjà configuré",
+      "reauth_successful": "Réauthentification réussie",
+      "reconfigure_successful": "Reconfiguration réussie"
     },
     "error": {
       "cannot_connect": "Échec de la connexion",
       "invalid_auth": "Authentification non valide",
-      "unknown": "Erreur inattendue"
+      "unknown": "Erreur inattendue",
+      "different_device": "Ces identifiants correspondent à un autre appareil Ecobulles"
     },
     "step": {
       "user": {
@@ -26,6 +29,15 @@
             "name": "Réglages avancés",
             "description": "Hypothèses utilisées pour estimer la consommation de CO2. Les valeurs par défaut conviennent à la plupart des installations."
           }
+        },
+        "data_description": {
+          "co2_bottle_weight": "Masse de CO2 dans la bouteille uniquement, pas le poids total de la bouteille métallique.",
+          "co2_micrometric_screw_setting": "Valeur affichée par la vis micrométrique. Elle sert uniquement à estimer l'utilisation de la bouteille CO2.",
+          "co2_pressure_bar": "Réglage de pression gaz, conservé comme métadonnée pour l'estimation.",
+          "co2_min_dose_mg_per_l": "Estimation basse de la dose de CO2 injectée par litre d'eau.",
+          "co2_max_dose_mg_per_l": "Estimation haute de la dose de CO2 injectée par litre d'eau.",
+          "co2_reference_pulse_ms_per_l": "Temps d'ouverture attendu de l'électrovanne pour un litre d'eau. Ecobulles Expert est généralement à 1500 ms/L.",
+          "poll_interval_seconds": "Fréquence à laquelle Home Assistant interroge le cloud Ecobulles."
         }
       },
       "init": {
@@ -46,7 +58,38 @@
             "name": "Réglages avancés",
             "description": "Hypothèses utilisées pour estimer la consommation de CO2. Les valeurs par défaut conviennent à la plupart des installations."
           }
+        },
+        "data_description": {
+          "enable_raw_co2_sensor": "Crée un capteur de diagnostic supplémentaire avec la valeur CO2 brute de l'API.",
+          "co2_bottle_weight": "Masse de CO2 dans la bouteille uniquement, pas le poids total de la bouteille métallique.",
+          "co2_micrometric_screw_setting": "Valeur affichée par la vis micrométrique. Elle sert uniquement à estimer l'utilisation de la bouteille CO2.",
+          "co2_pressure_bar": "Réglage de pression gaz, conservé comme métadonnée pour l'estimation.",
+          "co2_min_dose_mg_per_l": "Estimation basse de la dose de CO2 injectée par litre d'eau.",
+          "co2_max_dose_mg_per_l": "Estimation haute de la dose de CO2 injectée par litre d'eau.",
+          "co2_reference_pulse_ms_per_l": "Temps d'ouverture attendu de l'électrovanne pour un litre d'eau. Ecobulles Expert est généralement à 1500 ms/L.",
+          "poll_interval_seconds": "Fréquence à laquelle Home Assistant interroge le cloud Ecobulles."
         }
+      },
+      "reauth_confirm": {
+        "data": {
+          "email": "Email",
+          "password": "Mot de passe"
+        },
+        "description": "Saisissez vos identifiants Ecobulles actuels."
+      },
+      "reconfigure": {
+        "data": {
+          "email": "Email",
+          "password": "Mot de passe",
+          "co2_bottle_weight": "Masse de CO2 dans la bouteille (kg)",
+          "co2_micrometric_screw_setting": "Réglage de la vis micrométrique",
+          "co2_pressure_bar": "Pression CO2 (bar)",
+          "co2_min_dose_mg_per_l": "Dose CO2 minimale (mg/L)",
+          "co2_max_dose_mg_per_l": "Dose CO2 maximale (mg/L)",
+          "co2_reference_pulse_ms_per_l": "Impulsion CO2 de référence (ms/L)",
+          "poll_interval_seconds": "Intervalle de rafraîchissement (secondes)"
+        },
+        "description": "Modifiez les réglages Ecobulles de cet appareil."
       }
     }
   },
@@ -93,6 +136,20 @@
       "raw_co2_debug": {
         "name": "Debug CO2 brut"
       }
+    }
+  },
+  "issues": {
+    "api_payload_incomplete": {
+      "title": "Ecobulles a renvoyé des données incomplètes",
+      "description": "Home Assistant a pu contacter Ecobulles, mais la réponse de l'API cloud ne contenait pas les données d'usage ou d'appareil nécessaires. C'est généralement temporaire. Si le problème persiste, vérifiez l'application officielle Ecobulles et ouvrez une issue avec les diagnostics."
+    }
+  },
+  "exceptions": {
+    "cannot_connect": {
+      "message": "Échec de la connexion à Ecobulles."
+    },
+    "invalid_auth": {
+      "message": "Authentification Ecobulles non valide."
     }
   }
 }

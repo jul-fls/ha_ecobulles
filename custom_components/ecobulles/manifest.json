@@ -6,6 +6,11 @@
   ],
   "config_flow": true,
   "dependencies": [],
+  "dhcp": [
+    {
+      "registered_devices": true
+    }
+  ],
   "documentation": "https://github.com/jul-fls/ha_ecobulles#readme",
   "homekit": {},
   "iot_class": "cloud_polling",

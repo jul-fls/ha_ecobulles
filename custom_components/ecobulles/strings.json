@@ -18,6 +18,15 @@
             "name": "Advanced settings",
             "description": "Assumptions used to estimate CO2 consumption. The defaults are suitable for most installations."
           }
+        },
+        "data_description": {
+          "co2_bottle_weight": "Mass of CO2 in the bottle only, not the total metal cylinder weight.",
+          "co2_micrometric_screw_setting": "Value shown by the micrometric screw. It is used only for the estimated CO2 bottle usage sensor.",
+          "co2_pressure_bar": "Gas pressure setting, used as metadata for the estimate.",
+          "co2_min_dose_mg_per_l": "Lower estimate of injected CO2 dose per liter of water.",
+          "co2_max_dose_mg_per_l": "Upper estimate of injected CO2 dose per liter of water.",
+          "co2_reference_pulse_ms_per_l": "Expected valve-open time for one liter of water. Ecobulles Expert is typically 1500 ms/L.",
+          "poll_interval_seconds": "How often Home Assistant asks the Ecobulles cloud for fresh data."
         }
       },
       "init": {
@@ -38,16 +47,50 @@
             "name": "Advanced settings",
             "description": "Assumptions used to estimate CO2 consumption. The defaults are suitable for most installations."
           }
+        },
+        "data_description": {
+          "enable_raw_co2_sensor": "Creates an extra diagnostic sensor with the untouched API CO2 value.",
+          "co2_bottle_weight": "Mass of CO2 in the bottle only, not the total metal cylinder weight.",
+          "co2_micrometric_screw_setting": "Value shown by the micrometric screw. It is used only for the estimated CO2 bottle usage sensor.",
+          "co2_pressure_bar": "Gas pressure setting, used as metadata for the estimate.",
+          "co2_min_dose_mg_per_l": "Lower estimate of injected CO2 dose per liter of water.",
+          "co2_max_dose_mg_per_l": "Upper estimate of injected CO2 dose per liter of water.",
+          "co2_reference_pulse_ms_per_l": "Expected valve-open time for one liter of water. Ecobulles Expert is typically 1500 ms/L.",
+          "poll_interval_seconds": "How often Home Assistant asks the Ecobulles cloud for fresh data."
         }
+      },
+      "reauth_confirm": {
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        },
+        "description": "Enter your current Ecobulles credentials."
+      },
+      "reconfigure": {
+        "data": {
+          "email": "[%key:common::config_flow::data::email%]",
+          "password": "[%key:common::config_flow::data::password%]",
+          "co2_bottle_weight": "CO2 mass in bottle (kg)",
+          "co2_micrometric_screw_setting": "Micrometric screw setting",
+          "co2_pressure_bar": "CO2 pressure (bar)",
+          "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
+          "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
+          "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)",
+          "poll_interval_seconds": "Polling interval (seconds)"
+        },
+        "description": "Update Ecobulles settings for this device."
       }
     },
     "error": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "unknown": "[%key:common::config_flow::error::unknown%]",
+      "different_device": "The credentials belong to a different Ecobulles device"
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "reauth_successful": "Re-authentication was successful",
+      "reconfigure_successful": "Reconfiguration was successful"
     }
   },
   "entity": {
@@ -93,6 +136,20 @@
       "raw_co2_debug": {
         "name": "Raw CO2 debug"
       }
+    }
+  },
+  "issues": {
+    "api_payload_incomplete": {
+      "title": "Ecobulles returned incomplete data",
+      "description": "Home Assistant could contact Ecobulles, but the cloud API response was missing required usage or device data. This is usually temporary. If it persists, check the official Ecobulles app and open an issue with diagnostics."
+    }
+  },
+  "exceptions": {
+    "cannot_connect": {
+      "message": "Failed to connect to Ecobulles."
+    },
+    "invalid_auth": {
+      "message": "Invalid Ecobulles authentication."
     }
   }
 }

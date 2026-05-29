@@ -42,3 +42,50 @@ async def test_usage_request_keeps_current_minute_in_stopdate() -> None:
             "stopdate": "2026-05-21 00:37:42",
         },
     )
+
+
+def test_hash_password() -> None:
+    """Password hashing matches the legacy Ecobulles API expectation."""
+    assert (
+        EcobullesClient.hash_password("secret")
+        == "e5e9fa1ba31ecd1ae84f75caaa474f3a663f05f4"
+    )
+
+
+@pytest.mark.asyncio
+async def test_authenticate_success() -> None:
+    """Authentication returns normalized account metadata."""
+    client = EcobullesClient(session=object())
+    with patch.object(
+        client,
+        "get_login_payload",
+        AsyncMock(
+            return_value={
+                "status": 1,
+                "data": {
+                    "userid": "user-id",
+                    "eco_ref": "eco-ref",
+                    "conso": {"boite": {"name": " Test box "}},
+                },
+            }
+        ),
+    ):
+        assert await client.authenticate("user@example.com", "secret") == (
+            True,
+            "user-id",
+            "eco-ref",
+            "Test box",
+        )
+
+
+@pytest.mark.asyncio
+async def test_authenticate_failure() -> None:
+    """Authentication failure is normalized."""
+    client = EcobullesClient(session=object())
+    with patch.object(client, "get_login_payload", AsyncMock(return_value={"status": 0})):
+        assert await client.authenticate("user@example.com", "bad") == (
+            False,
+            None,
+            None,
+            None,
+        )

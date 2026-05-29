@@ -8,6 +8,7 @@ from typing import Any
 
 from aiohttp import ClientError
 from aiohttp import ClientSession
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util.dt import now as hass_now
 
@@ -22,7 +23,9 @@ class EcobullesClient:
     BASE_URL = "https://ecobulles.agom.net/cmd/"
     USER_AGENT = "Ecobulles"
 
-    def __init__(self, hass=None, session: ClientSession | None = None) -> None:
+    def __init__(
+        self, hass: HomeAssistant | None = None, session: ClientSession | None = None
+    ) -> None:
         """Initialize the client."""
         self._session = session or (
             async_get_clientsession(hass) if hass is not None else None
@@ -63,10 +66,12 @@ class EcobullesClient:
         except ClientError as err:
             raise RuntimeError(f"Ecobulles request failed for {endpoint}: {err}") from err
 
-    async def authenticate(self, email: str, password: str):
+    async def authenticate(
+        self, email: str, password: str
+    ) -> tuple[bool, str | None, str | None, str | None]:
         """Authenticate with the Ecobulles API."""
         content = await self.get_login_payload(email, password)
-        if int((content or {}).get("status", 0)) != 1:
+        if content is None or int(content.get("status", 0)) != 1:
             return False, None, None, None
 
         data = content["data"]

@@ -15,8 +15,12 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfTime, UnitOfVolume
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfTime, UnitOfVolume
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -41,6 +45,8 @@ from .water_usage import WaterUsageState
 
 _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 1
+PARALLEL_UPDATES = 0
+REPAIR_ISSUE_API_PAYLOAD_INCOMPLETE = "api_payload_incomplete"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -121,10 +127,14 @@ DIAGNOSTIC_SENSORS: tuple[EcobullesSensorDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities) -> None:
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
     """Set up Ecobulles sensors from a config entry."""
     eco_ref = entry.data["eco_ref"]
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coordinator = entry.runtime_data.coordinator
 
     entities: list[SensorEntity] = [
         EcobullesDescribedSensor(coordinator, eco_ref, description)
@@ -147,7 +157,11 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Fetch API data and own durable Ecobulles accounting state."""
 
     def __init__(
-        self, hass, api: EcobullesClient, eco_ref: str, config: dict[str, Any]
+        self,
+        hass: HomeAssistant,
+        api: EcobullesClient,
+        eco_ref: str,
+        config: dict[str, Any],
     ) -> None:
         """Initialize the coordinator."""
         self.api = api
@@ -190,7 +204,20 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ) from err
 
         if usage is None or device is None:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                REPAIR_ISSUE_API_PAYLOAD_INCOMPLETE,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=REPAIR_ISSUE_API_PAYLOAD_INCOMPLETE,
+            )
             raise UpdateFailed("Ecobulles API returned incomplete data")
+        ir.async_delete_issue(
+            self.hass,
+            DOMAIN,
+            REPAIR_ISSUE_API_PAYLOAD_INCOMPLETE,
+        )
 
         box = device.get("data", {}).get("boite", {})
         active_alerts = _active_alerts_from_payloads(device, login_payload)
@@ -257,7 +284,7 @@ def _active_alerts_from_payloads(
     device_payload: dict[str, Any] | None, login_payload: dict[str, Any] | None
 ) -> list[dict[str, Any]]:
     """Extract currently active alerts from known API payload locations."""
-    candidates = []
+    candidates: list[dict[str, Any]] = []
     if device_payload:
         candidates.extend(device_payload.get("data", {}).get("alert") or [])
     if login_payload:
@@ -311,7 +338,7 @@ class EcobullesDescribedSensor(EcobullesBaseSensor):
         self._attr_unique_id = f"{eco_ref}_{description.key}"
 
     @property
-    def native_value(self):
+    def native_value(self) -> Any:
         """Return the current sensor value."""
         return self.entity_description.value_fn(self.coordinator.data)
 
@@ -321,7 +348,6 @@ class ActiveAlertsSensor(EcobullesBaseSensor):
 
     _attr_translation_key = "active_alerts"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_icon = "mdi:alert-circle-outline"
 
     def __init__(self, coordinator: EcobullesCoordinator, eco_ref: str) -> None:
         """Initialize the active alerts sensor."""
@@ -349,7 +375,6 @@ class CO2InjectionTimeSensor(EcobullesBaseSensor):
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_icon = "mdi:molecule-co2"
 
     def __init__(
         self,
@@ -383,7 +408,6 @@ class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
 
     _attr_translation_key = "estimated_co2_bottle_usage"
     _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_icon = "mdi:gauge"
 
     def __init__(
         self,

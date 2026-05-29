@@ -8,7 +8,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import (
-    ConfigFlow,
+    ConfigFlow as BaseConfigFlow,
+    ConfigEntry,
     ConfigFlowResult,
     OptionsFlowWithConfigEntry,
 )
@@ -94,24 +95,23 @@ def _flatten_advanced_options(data: dict[str, Any]) -> dict[str, Any]:
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
-
-    # Create an instance of your API client
-
-    # Try to authenticate with the provided credentials
     client = EcobullesClient(hass)
-    auth_success, user_id, eco_ref, boitier_name = await client.authenticate(
-        data[CONF_EMAIL], data[CONF_PASSWORD]
-    )
+    try:
+        auth_success, user_id, eco_ref, boitier_name = await client.authenticate(
+            data[CONF_EMAIL], data[CONF_PASSWORD]
+        )
+    except TimeoutError as err:
+        raise CannotConnect from err
+    except RuntimeError as err:
+        raise CannotConnect from err
+
     if auth_success:
-        # Authentication was successful
         return {
-            "title": "Ecobulles : " + boitier_name,
+            "title": "Ecobulles : " + (boitier_name or ""),
             "user_id": user_id,
             "eco_ref": eco_ref,
         }
-    else:
-        # Authentication failed
-        raise InvalidAuth
+    raise InvalidAuth
 
 
 def _device_info_from_response(device_info_raw: dict[str, Any]) -> dict[str, Any]:
@@ -137,14 +137,14 @@ def _isoish(value: str | None) -> str | None:
     return value.replace(" ", "T") if value else None
 
 
-class ConfigFlow(ConfigFlow, domain=DOMAIN):
+class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Ecobulles."""
 
     VERSION = 1
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlowHandler:
         """Get the options flow for this handler."""
         return OptionsFlowHandler(config_entry)
 
@@ -173,12 +173,9 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
                         **info,
                         **_device_info_from_response(device_info_raw or {}),
                     }
-                    # Ensure you're not storing 'title' in the entry data, as it was used just for entry naming
                     entry_data.pop("title", None)
 
-                    existing_entry = await self.async_set_unique_id(
-                        user_input[CONF_EMAIL]
-                    )
+                    existing_entry = await self.async_set_unique_id(info["eco_ref"])
                     if existing_entry:
                         self.hass.config_entries.async_update_entry(
                             existing_entry, data=entry_data
@@ -193,6 +190,89 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+        )
+
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
+        """Handle reauthentication."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm new credentials."""
+        errors: dict[str, str] = {}
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if entry is None:
+            return self.async_abort(reason="unknown")
+
+        if user_input is not None:
+            merged_data = {**entry.data, **user_input}
+            try:
+                info = await validate_input(self.hass, merged_data)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            else:
+                if info["eco_ref"] != entry.data.get("eco_ref"):
+                    errors["base"] = "different_device"
+                else:
+                    self.hass.config_entries.async_update_entry(entry, data=merged_data)
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+                    return self.async_abort(reason="reauth_successful")
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_EMAIL, default=entry.data.get(CONF_EMAIL, "")
+                    ): str,
+                    vol.Required(CONF_PASSWORD): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration."""
+        errors: dict[str, str] = {}
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if entry is None:
+            return self.async_abort(reason="unknown")
+
+        if user_input is not None:
+            user_input = _flatten_advanced_options(user_input)
+            try:
+                info = await validate_input(self.hass, user_input)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            else:
+                if info["eco_ref"] != entry.data.get("eco_ref"):
+                    errors["base"] = "different_device"
+                else:
+                    client = EcobullesClient(self.hass)
+                    device_info_raw = await client.get_device_info(info["eco_ref"])
+                    entry_data = {
+                        **user_input,
+                        **info,
+                        **_device_info_from_response(device_info_raw or {}),
+                    }
+                    entry_data.pop("title", None)
+                    self.hass.config_entries.async_update_entry(
+                        entry, data=entry_data, title=info["title"]
+                    )
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+                    return self.async_abort(reason="reconfigure_successful")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_config_schema(entry.data),
+            errors=errors,
         )
 
 
@@ -261,6 +341,20 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
 class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
 
+    def __init__(self) -> None:
+        """Initialize the error."""
+        super().__init__(
+            translation_domain=DOMAIN,
+            translation_key="cannot_connect",
+        )
+
 
 class InvalidAuth(HomeAssistantError):
     """Error to indicate there is invalid auth."""
+
+    def __init__(self) -> None:
+        """Initialize the error."""
+        super().__init__(
+            translation_domain=DOMAIN,
+            translation_key="invalid_auth",
+        )

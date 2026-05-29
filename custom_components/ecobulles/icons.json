@@ -1,0 +1,23 @@
+{
+  "entity": {
+    "sensor": {
+      "active_alerts": {
+        "default": "mdi:alert-circle-outline"
+      },
+      "co2_injection_time": {
+        "default": "mdi:molecule-co2"
+      },
+      "estimated_co2_bottle_usage": {
+        "default": "mdi:gauge"
+      },
+      "raw_co2_value": {
+        "default": "mdi:code-json"
+      }
+    },
+    "switch": {
+      "raw_co2_debug": {
+        "default": "mdi:bug-outline"
+      }
+    }
+  }
+}

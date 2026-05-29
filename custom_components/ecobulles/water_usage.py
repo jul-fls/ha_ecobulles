@@ -48,7 +48,7 @@ class WaterUsageState:
         }
 
     @classmethod
-    def from_dict(cls, raw: dict | None) -> "WaterUsageState":
+    def from_dict(cls, raw: dict[str, int] | None) -> "WaterUsageState":
         """Restore the state from storage."""
         raw = raw or {}
         return cls(

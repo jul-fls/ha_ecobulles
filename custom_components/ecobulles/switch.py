@@ -6,9 +6,13 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from typing import Any
+
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
+
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
@@ -25,7 +29,6 @@ class RawCO2DebugSwitch(SwitchEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "raw_co2_debug"
-    _attr_icon = "mdi:bug-outline"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -39,11 +42,11 @@ class RawCO2DebugSwitch(SwitchEntity):
         """Return whether raw CO2 diagnostics are enabled."""
         return bool(self.entry.options.get(CONF_ENABLE_RAW_CO2_SENSOR, False))
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable raw CO2 diagnostics."""
         await self._update_option(True)
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable raw CO2 diagnostics."""
         await self._update_option(False)
 
@@ -55,6 +58,6 @@ class RawCO2DebugSwitch(SwitchEntity):
         await self.hass.config_entries.async_reload(self.entry.entry_id)
 
     @property
-    def device_info(self):
+    def device_info(self) -> dict[str, Any]:
         """Return device registry metadata."""
         return {"identifiers": {(DOMAIN, self.entry.data["eco_ref"])}}

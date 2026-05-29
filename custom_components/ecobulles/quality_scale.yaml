@@ -1,0 +1,78 @@
+rules:
+  action_exceptions:
+    status: exempt
+    comment: This integration does not provide service actions.
+  action_setup:
+    status: exempt
+    comment: This integration does not provide service actions.
+  appropriate_polling: done
+  async_dependency:
+    status: exempt
+    comment: The integration has no external Python dependency; the built-in async client uses Home Assistant's aiohttp session.
+  brands: done
+  common_modules: done
+  config_entry_unloading: done
+  config_flow: done
+  config_flow_test_coverage: done
+  dependency_transparency:
+    status: exempt
+    comment: The integration currently has no external Python dependencies.
+  devices: done
+  diagnostics: done
+  discovery:
+    status: exempt
+    comment: Ecobulles devices are cloud-account devices and the API does not expose LAN discovery data.
+  discovery_update_info:
+    status: done
+    comment: DHCP registered_devices support lets Home Assistant update network information for already configured devices.
+  docs_actions:
+    status: exempt
+    comment: This integration does not provide service actions.
+  docs_configuration_parameters: done
+  docs_data_update: done
+  docs_examples: done
+  docs_high_level_description: done
+  docs_installation_instructions: done
+  docs_installation_parameters: done
+  docs_known_limitations: done
+  docs_removal_instructions: done
+  docs_supported_devices: done
+  docs_supported_functions: done
+  docs_troubleshooting: done
+  docs_use_cases: done
+  dynamic_devices:
+    status: exempt
+    comment: The current API setup exposes one account-bound Ecobulles device per config entry.
+  entity_category: done
+  entity_device_class: done
+  entity_disabled_by_default:
+    status: done
+    comment: The noisy raw CO2 debug sensor is opt-in and is not created unless the diagnostics switch is enabled.
+  entity_event_setup:
+    status: exempt
+    comment: Entities do not subscribe to external events.
+  entity_translations: done
+  entity_unique_id: done
+  exception_translations: done
+  has_entity_name: done
+  icon_translations: done
+  inject_websession: done
+  integration_owner: done
+  log_when_unavailable: done
+  parallel_updates: done
+  reauthentication_flow: done
+  reconfiguration_flow: done
+  repair_issues: done
+  runtime_data: done
+  stale_devices:
+    status: exempt
+    comment: The integration creates a single device from a config entry and has no dynamic device inventory.
+  strict_typing:
+    status: done
+    comment: The integration is checked with mypy strict mode in CI, with Home Assistant imports treated as external dependencies.
+  test_before_configure: done
+  test_before_setup: done
+  test_coverage:
+    status: done
+    comment: CI enforces pytest coverage at 95% or higher for the integration source.
+  unique_config_entry: done

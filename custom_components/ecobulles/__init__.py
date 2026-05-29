@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -14,23 +15,29 @@ from .const import DOMAIN
 from .device import model_from_serial_number
 from .sensor import EcobullesCoordinator
 
-# TODO List the platforms that you want to support.
-# For your initial PR, limit it to 1 platform.
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
-# PLATFORMS: list[Platform] = [Platform.BUTTON, Platform.SWITCH]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+@dataclass
+class EcobullesRuntimeData:
+    """Runtime data stored on the config entry."""
+
+    coordinator: EcobullesCoordinator
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Ecobulles from a config entry."""
 
     # Ensure DOMAIN key exists in hass.data
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 
-    eco_ref = entry.data.get("eco_ref")
+    eco_ref: str = entry.data["eco_ref"]
     boitier_name = entry.data.get("name")
     num_serie = entry.data.get("num_serie")
     firmware_version = entry.data.get("firmware_version")
+    if eco_ref and entry.unique_id != eco_ref:
+        hass.config_entries.async_update_entry(entry, unique_id=eco_ref)
 
     # Create or get an instance of the device registry
     device_registry = dr.async_get(hass)
@@ -44,7 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         model=model_from_serial_number(num_serie),
         sw_version=firmware_version,
         serial_number=num_serie,
-        connections={(CONNECTION_NETWORK_MAC, eco_ref)}
+        connections={(CONNECTION_NETWORK_MAC, eco_ref)},
     )
 
     # Store additional device-specific information in hass.data for internal use
@@ -55,9 +62,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         entry.data,
     )
     await coordinator.async_config_entry_first_refresh()
+    entry.runtime_data = EcobullesRuntimeData(coordinator=coordinator)
 
     hass.data[DOMAIN][entry.entry_id] = {
-        "coordinator": coordinator,
         "eco_ref": eco_ref,
         "install_date": entry.data.get("install_date"),
         "last_date_receive": entry.data.get("last_date_receive"),
