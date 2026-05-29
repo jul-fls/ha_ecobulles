@@ -294,6 +294,14 @@ def _active_alerts_from_payloads(
     return [alert for alert in candidates if str(alert.get("currently")) == "1"]
 
 
+def _float_config_value(config: dict[str, Any], key: str, default: float) -> float:
+    """Read a numeric config value without hiding explicit zero values."""
+    value = config.get(key, default)
+    if value is None or value == "":
+        value = default
+    return float(value)
+
+
 
 
 class EcobullesBaseSensor(CoordinatorEntity[EcobullesCoordinator], SensorEntity):
@@ -425,7 +433,9 @@ class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
         """Return estimated bottle usage percentage."""
         total_gas = self.coordinator.data.get("total_gas")
         flow_rate = self._estimated_flow_rate_g_per_min
-        bottle_weight_kg = float(self.config.get(CONF_CO2_BOTTLE_WEIGHT_KG, 10) or 10)
+        bottle_weight_kg = _float_config_value(
+            self.config, CONF_CO2_BOTTLE_WEIGHT_KG, 10
+        )
         if total_gas is None or flow_rate <= 0 or bottle_weight_kg <= 0:
             return None
 
@@ -446,8 +456,8 @@ class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
             g/min = dose_mg_per_l / pulse_ms_per_l * 60
         """
         dose = self._estimated_dose_mg_per_l
-        pulse_ms = float(
-            self.config.get(CONF_CO2_REFERENCE_PULSE_MS_PER_L, 1500) or 1500
+        pulse_ms = _float_config_value(
+            self.config, CONF_CO2_REFERENCE_PULSE_MS_PER_L, 1500
         )
         if dose <= 0 or pulse_ms <= 0:
             return 0
@@ -456,9 +466,9 @@ class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
     @property
     def _estimated_dose_mg_per_l(self) -> float:
         """Estimate CO2 dose in mg/L from the micrometric screw setting."""
-        screw = float(self.config.get(CONF_CO2_MICROMETRIC_SCREW_SETTING, 5) or 5)
-        min_dose = float(self.config.get(CONF_CO2_MIN_DOSE_MG_PER_L, 85) or 85)
-        max_dose = float(self.config.get(CONF_CO2_MAX_DOSE_MG_PER_L, 150) or 150)
+        screw = _float_config_value(self.config, CONF_CO2_MICROMETRIC_SCREW_SETTING, 5)
+        min_dose = _float_config_value(self.config, CONF_CO2_MIN_DOSE_MG_PER_L, 85)
+        max_dose = _float_config_value(self.config, CONF_CO2_MAX_DOSE_MG_PER_L, 150)
         normalized_screw = min(max(screw, 2), 9)
         return min_dose + ((normalized_screw - 2) / 7) * (max_dose - min_dose)
 
