@@ -160,9 +160,9 @@ async def test_usage_request_handles_empty_graph() -> None:
 
 @pytest.mark.asyncio
 async def test_post_requires_session() -> None:
-    """The API client needs an injected Home Assistant session."""
+    """The API client needs an injected aiohttp session."""
     client = EcobullesClient()
-    with pytest.raises(RuntimeError, match="requires a Home Assistant session"):
+    with pytest.raises(RuntimeError, match="requires an aiohttp session"):
         await client._post("endpoint.php", {})
 
 
