@@ -15,7 +15,9 @@
   "homekit": {},
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jul-fls/ha_ecobulles/issues",
-  "requirements": [],
+  "requirements": [
+    "pyecobulles==0.1.0"
+  ],
   "ssdp": [],
   "version": "1.2.4",
   "zeroconf": []

@@ -151,6 +151,15 @@ The pytest job enforces a minimum integration coverage gate and uploads
 `coverage.json` as a workflow artifact. Coverage is also uploaded to Codecov so
 the README badge shows the current percentage dynamically.
 
+### Python library
+
+The Ecobulles cloud client lives in
+[`jul-fls/ecobulles_api`](https://github.com/jul-fls/ecobulles_api) as the
+`pyecobulles` async Python package. This keeps Home Assistant-specific code
+focused on config entries, coordinators, devices, and entities, while the API
+transport is reusable and publishable on PyPI for a future Home Assistant Core
+contribution.
+
 ### Sensors
 
 #### Water sensors
@@ -367,6 +376,15 @@ crée les bonnes entités et reste publiable au fil de son évolution.
 Le job pytest impose un seuil minimum de couverture de l'intégration et téléverse
 `coverage.json` en artefact de workflow. La couverture est aussi envoyée à
 Codecov afin que le badge du README affiche dynamiquement le pourcentage actuel.
+
+### Librairie Python
+
+Le client cloud Ecobulles vit dans
+[`jul-fls/ecobulles_api`](https://github.com/jul-fls/ecobulles_api) sous forme
+du package Python asynchrone `pyecobulles`. L'intégration Home Assistant reste
+ainsi centrée sur les config entries, coordinators, appareils et entités, tandis
+que le transport API est réutilisable et publiable sur PyPI pour une future
+contribution à Home Assistant Core.
 
 ### Capteurs
 
