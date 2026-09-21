@@ -83,11 +83,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ]
     boxes.sort(key=lambda box: box["eco_ref"] != entry.data["eco_ref"])
     account_id = client.account_id or entry.data.get("user_id")
-    updated_data = {**entry.data, "devices": boxes, "user_id": account_id}
+    account_name = client.account_name or entry.data.get("account_name")
+    updated_data = {
+        **entry.data,
+        "devices": boxes,
+        "user_id": account_id,
+        "account_name": account_name,
+    }
     account_key = f"account_{account_id}" if account_id else entry.unique_id
-    if updated_data != dict(entry.data) or account_key != entry.unique_id:
+    old_name = entry.data.get("account_name") or entry.data.get("name")
+    generated_titles = {
+        "Ecobulles",
+        f"Ecobulles : {old_name}",
+        f"Ecobulles: {old_name}",
+    }
+    title = (
+        f"Ecobulles: {account_name}"
+        if account_name and entry.title in generated_titles
+        else entry.title
+    )
+    if (
+        updated_data != dict(entry.data)
+        or account_key != entry.unique_id
+        or title != entry.title
+    ):
         hass.config_entries.async_update_entry(
-            entry, data=updated_data, unique_id=account_key
+            entry, data=updated_data, unique_id=account_key, title=title
         )
 
     device_registry = dr.async_get(hass)

@@ -16,8 +16,16 @@ pytestmark = [
 async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) -> None:
     """The integration loads its entities without talking to the real cloud."""
     mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, title="Ecobulles : Test box"
+    )
 
     with (
+        patch(
+            "custom_components.ecobulles.EcobullesClient.account_name",
+            new_callable=PropertyMock,
+            return_value="Julien Flusin",
+        ),
         patch(
             "custom_components.ecobulles.EcobullesClient.account_id",
             new_callable=PropertyMock,
@@ -128,6 +136,8 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
     }
     assert mock_config_entry.unique_id == "account_portal-account-id"
     assert mock_config_entry.data["user_id"] == "portal-account-id"
+    assert mock_config_entry.data["account_name"] == "Julien Flusin"
+    assert mock_config_entry.title == "Ecobulles: Julien Flusin"
 
     assert hass.states.get(install_date_entity_id).state == "2024-01-01T00:00:00+00:00"
     assert hass.states.get(last_receive_entity_id).state == "2025-06-05T21:50:00+00:00"

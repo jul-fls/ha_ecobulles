@@ -27,7 +27,8 @@ pressure, estimated dose range, reference valve pulse, and polling interval.
 The raw CO2 debug sensor can be enabled later from the integration options.
 One Home Assistant integration entry represents the Ecobulles account. Every
 box linked to that account becomes a separate Home Assistant device with its
-own water, CO2, alert, and bottle-empty entities. Reload the integration after
+own name and its own water, CO2, alert, and bottle-empty entities. The entry
+uses the account holder's name from the portal. Reload the integration after
 linking another box to the same account to discover it. The raw CO2 debug
 switch is account-wide and affects the raw sensor on every box.
 
@@ -245,7 +246,8 @@ l'intervalle de rafraîchissement. Le capteur CO2 brut peut être activé ensuit
 depuis les options de l'intégration.
 Une seule configuration Home Assistant représente le compte Ecobulles. Chaque
 boîtier associé à ce compte devient un appareil Home Assistant distinct, avec
-ses propres capteurs d'eau, de CO2, d'alertes et de bouteille vide. Rechargez
+son propre nom et ses propres capteurs d'eau, de CO2, d'alertes et de bouteille
+vide. L'entrée porte le nom du titulaire du compte indiqué par le portail. Rechargez
 l'intégration après avoir associé un nouveau boîtier au compte. L'interrupteur
 de diagnostic CO2 brut est commun au compte et affecte tous les boîtiers.
 

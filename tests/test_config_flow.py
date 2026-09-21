@@ -1,6 +1,6 @@
 """Tests for the Ecobulles config flow."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 from homeassistant import config_entries
@@ -239,9 +239,33 @@ async def test_validate_input_normalizes_success(hass) -> None:
         AsyncMock(return_value=(True, "user-id", "eco-ref", "Box")),
     ):
         assert await validate_input(hass, USER_INPUT) == {
-            "title": "Ecobulles : Box",
+            "title": "Ecobulles: Box",
             "user_id": "user-id",
             "eco_ref": "eco-ref",
+            "account_name": None,
+        }
+
+
+async def test_validate_input_uses_account_name_instead_of_box_name(hass) -> None:
+    """The account labels the config entry; boxes keep their own device names."""
+    from custom_components.ecobulles.config_flow import validate_input
+
+    with (
+        patch(
+            "custom_components.ecobulles.config_flow.EcobullesClient.authenticate",
+            AsyncMock(return_value=(True, "user-id", "eco-ref", "BOITIER CASTRES")),
+        ),
+        patch(
+            "custom_components.ecobulles.config_flow.EcobullesClient.account_name",
+            new_callable=PropertyMock,
+            return_value="Julien Flusin",
+        ),
+    ):
+        assert await validate_input(hass, USER_INPUT) == {
+            "title": "Ecobulles: Julien Flusin",
+            "user_id": "user-id",
+            "eco_ref": "eco-ref",
+            "account_name": "Julien Flusin",
         }
 
 

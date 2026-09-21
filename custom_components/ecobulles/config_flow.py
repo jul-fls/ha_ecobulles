@@ -106,10 +106,13 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         raise CannotConnect from err
 
     if auth_success:
+        account_name = client.account_name
+        display_name = account_name or (boitier_name or "").strip()
         return {
-            "title": "Ecobulles : " + (boitier_name or ""),
+            "title": f"Ecobulles: {display_name}" if display_name else "Ecobulles",
             "user_id": user_id,
             "eco_ref": eco_ref,
+            "account_name": account_name,
         }
     raise InvalidAuth
 
@@ -208,8 +211,23 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                         entry_data["eco_ref"] = existing_entry.data["eco_ref"]
                         if "devices" in existing_entry.data:
                             entry_data["devices"] = existing_entry.data["devices"]
+                        previous_name = existing_entry.data.get(
+                            "account_name"
+                        ) or existing_entry.data.get("name")
+                        generated_titles = {
+                            "Ecobulles",
+                            f"Ecobulles : {previous_name}",
+                            f"Ecobulles: {previous_name}",
+                        }
                         self.hass.config_entries.async_update_entry(
-                            existing_entry, data=entry_data, unique_id=account_key
+                            existing_entry,
+                            data=entry_data,
+                            unique_id=account_key,
+                            title=(
+                                info["title"]
+                                if existing_entry.title in generated_titles
+                                else existing_entry.title
+                            ),
                         )
                         await self.hass.config_entries.async_reload(
                             existing_entry.entry_id
@@ -248,7 +266,25 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                 if not _same_account(info, entry):
                     errors["base"] = "different_device"
                 else:
-                    self.hass.config_entries.async_update_entry(entry, data=merged_data)
+                    old_name = entry.data.get("account_name") or entry.data.get("name")
+                    generated_titles = {
+                        "Ecobulles",
+                        f"Ecobulles : {old_name}",
+                        f"Ecobulles: {old_name}",
+                    }
+                    self.hass.config_entries.async_update_entry(
+                        entry,
+                        data={
+                            **merged_data,
+                            "account_name": info.get("account_name")
+                            or entry.data.get("account_name"),
+                        },
+                        title=(
+                            info["title"]
+                            if entry.title in generated_titles
+                            else entry.title
+                        ),
+                    )
                     await self.hass.config_entries.async_reload(entry.entry_id)
                     return self.async_abort(reason="reauth_successful")
 
