@@ -9,7 +9,7 @@
       "cannot_connect": "Failed to connect",
       "invalid_auth": "Invalid authentication",
       "unknown": "Unexpected error",
-      "different_device": "The credentials belong to a different Ecobulles device"
+      "different_device": "The credentials belong to a different Ecobulles account"
     },
     "step": {
       "user": {
@@ -94,6 +94,11 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "bottle_empty": {
+        "name": "CO2 bottle empty"
+      }
+    },
     "sensor": {
       "total_water_usage": {
         "name": "Water usage"

@@ -133,23 +133,23 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Ecobulles sensors from a config entry."""
-    eco_ref = entry.data["eco_ref"]
-    coordinator = entry.runtime_data.coordinator
-
-    entities: list[SensorEntity] = [
-        EcobullesDescribedSensor(coordinator, eco_ref, description)
-        for description in (*WATER_SENSORS, *DIAGNOSTIC_SENSORS)
-    ]
-    if entry.options.get(CONF_ENABLE_RAW_CO2_SENSOR, False):
-        entities.append(EcobullesDescribedSensor(coordinator, eco_ref, RAW_CO2_SENSOR))
-    entities.append(
-        CO2InjectionTimeSensor(
-            coordinator,
-            eco_ref,
+    entities: list[SensorEntity] = []
+    for eco_ref, coordinator in entry.runtime_data.coordinators.items():
+        entities.extend(
+            EcobullesDescribedSensor(coordinator, eco_ref, description)
+            for description in (*WATER_SENSORS, *DIAGNOSTIC_SENSORS)
         )
-    )
-    entities.append(EstimatedCO2BottleUsageSensor(coordinator, eco_ref, entry.data))
-    entities.append(ActiveAlertsSensor(coordinator, eco_ref))
+        if entry.options.get(CONF_ENABLE_RAW_CO2_SENSOR, False):
+            entities.append(
+                EcobullesDescribedSensor(coordinator, eco_ref, RAW_CO2_SENSOR)
+            )
+        entities.extend(
+            (
+                CO2InjectionTimeSensor(coordinator, eco_ref),
+                EstimatedCO2BottleUsageSensor(coordinator, eco_ref, entry.data),
+                ActiveAlertsSensor(coordinator, eco_ref),
+            )
+        )
     async_add_entities(entities)
 
 
@@ -246,19 +246,24 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "suspended_date": _isoish(box.get("suspended_date")),
             "firm_ver": box.get("firm_ver"),
             "last_alert": box.get("last_alert"),
+            "bottle_empty": box.get("bottle_empty"),
+            "bottle_empty_timestamp": _isoish(box.get("bottle_empty_timestamp")),
             "active_alerts": active_alerts,
             "active_alert_count": len(active_alerts),
             "name": box.get("name"),
         }
 
     async def _async_fetch_login_payload(self) -> dict[str, Any] | None:
-        """Fetch login payload because current alerts are exposed there."""
+        """Fetch alerts for this box, never those of the account's first box."""
         email = self.config.get(CONF_EMAIL)
         password = self.config.get(CONF_PASSWORD)
         if not email or not password:
             return None
         try:
             async with async_timeout.timeout(5):
+                if hasattr(self.api, "get_alerts"):
+                    alerts = await self.api.get_alerts(self.eco_ref)
+                    return {"data": {"conso": {"alert": alerts}}}
                 return await self.api.get_login_payload(email, password)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
@@ -437,6 +442,9 @@ class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
             self.config, CONF_CO2_BOTTLE_WEIGHT_KG, 10
         )
         if total_gas is None or flow_rate <= 0 or bottle_weight_kg <= 0:
+            return None
+        if self.coordinator.data.get("bottle_empty") and int(total_gas) == 0:
+            # The portal may omit the gas counter despite a real empty-bottle signal.
             return None
 
         open_minutes = int(total_gas) / 1000 / 60

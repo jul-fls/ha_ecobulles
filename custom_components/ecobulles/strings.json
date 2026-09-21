@@ -85,7 +85,7 @@
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
       "unknown": "[%key:common::config_flow::error::unknown%]",
-      "different_device": "The credentials belong to a different Ecobulles device"
+      "different_device": "The credentials belong to a different Ecobulles account"
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
@@ -94,6 +94,11 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "bottle_empty": {
+        "name": "CO2 bottle empty"
+      }
+    },
     "sensor": {
       "total_water_usage": {
         "name": "Water usage"

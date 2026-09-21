@@ -159,6 +159,50 @@ async def test_user_flow_reconfigures_existing_entry(hass) -> None:
     reload_mock.assert_awaited_once_with(existing_entry.entry_id)
 
 
+async def test_same_account_with_different_first_box_does_not_duplicate(hass) -> None:
+    """A second box under one account updates rather than duplicating the entry."""
+    existing_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**USER_INPUT, "eco_ref": "test-eco-ref", "user_id": "user-id"},
+        unique_id="account_user-id",
+    )
+    existing_entry.add_to_hass(hass)
+    with (
+        patch(
+            "custom_components.ecobulles.config_flow.validate_input",
+            AsyncMock(return_value={**FLOW_INFO, "eco_ref": "second-eco-ref"}),
+        ),
+        patch(
+            "custom_components.ecobulles.config_flow.EcobullesClient.get_device_info",
+            AsyncMock(return_value=DEVICE_INFO),
+        ),
+        patch.object(hass.config_entries, "async_reload", AsyncMock(return_value=True)),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}, data=USER_INPUT
+        )
+
+    assert result["type"] == "abort"
+    assert existing_entry.data["eco_ref"] == "test-eco-ref"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+def test_legacy_account_id_migrates_by_box_reference() -> None:
+    """The old mobile user ID and new portal account ID may be different."""
+    from custom_components.ecobulles.config_flow import _same_account
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"user_id": "legacy-id", "eco_ref": "original-box"},
+    )
+    assert _same_account(
+        {"user_id": "portal-id", "eco_ref": "original-box"}, entry
+    )
+    assert not _same_account(
+        {"user_id": "different-id", "eco_ref": "unknown-box"}, entry
+    )
+
+
 async def test_user_flow_handles_missing_title(hass) -> None:
     """Unexpected empty titles keep the setup form open."""
     with patch(

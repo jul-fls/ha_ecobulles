@@ -55,3 +55,25 @@ async def test_diagnostics_without_runtime_data(hass) -> None:
         "entry": {"data": {}, "options": {}},
         "coordinator": {},
     }
+
+
+async def test_multi_device_diagnostics_hide_box_identifiers(hass) -> None:
+    """Account diagnostics retain separate readings without exposing MAC keys."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"devices": [{"eco_ref": "44B7D095E9C6"}]},
+        options={},
+    )
+    entry.runtime_data = SimpleNamespace(
+        coordinators={
+            "44B7D095E9C6": SimpleNamespace(data={"total_eau": 10}),
+            "44B7D095E9C7": SimpleNamespace(data={"total_eau": 20}),
+        }
+    )
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+
+    assert diagnostics["coordinator"] == {
+        "device_1": {"total_eau": 10},
+        "device_2": {"total_eau": 20},
+    }
+    assert diagnostics["entry"]["data"]["devices"][0]["eco_ref"] == "**REDACTED**"

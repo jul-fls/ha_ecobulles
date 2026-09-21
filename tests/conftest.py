@@ -18,6 +18,8 @@ def mock_config_entry() -> MockConfigEntry:
             "name": "Test box",
             "num_serie": "SERIAL",
             "firmware_version": "1.0",
+            "email": "test@example.com",
+            "password": "test-password",
             "co2_bottle_weight": 10,
         },
         options={CONF_ENABLE_RAW_CO2_SENSOR: True},

@@ -1,6 +1,6 @@
 """Home Assistant integration-level tests for Ecobulles sensors."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 from homeassistant.helpers import entity_registry as er
@@ -18,6 +18,30 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
     mock_config_entry.add_to_hass(hass)
 
     with (
+        patch(
+            "custom_components.ecobulles.EcobullesClient.account_id",
+            new_callable=PropertyMock,
+            return_value="portal-account-id",
+        ),
+        patch(
+            "custom_components.ecobulles.EcobullesClient.list_devices",
+            AsyncMock(
+                return_value=[
+                    {
+                        "eco_ref": "test-eco-ref",
+                        "name": "Test box",
+                        "num_serie": "SERIAL",
+                        "firm_ver": "1.0",
+                    },
+                    {
+                        "eco_ref": "second-eco-ref",
+                        "name": "Second box",
+                        "num_serie": "XC240008",
+                        "firm_ver": "1.1",
+                    },
+                ]
+            ),
+        ),
         patch(
             "custom_components.ecobulles.sensor.EcobullesClient.get_total_water_and_co2_usage",
             AsyncMock(
@@ -44,10 +68,15 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
                             "firm_ver": "1.0",
                             "last_alert": None,
                             "name": "Test box",
+                            "bottle_empty": True,
                         }
                     }
                 }
             ),
+        ),
+        patch(
+            "custom_components.ecobulles.sensor.EcobullesClient.get_alerts",
+            AsyncMock(return_value=[]),
         ),
     ):
         assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
@@ -72,6 +101,15 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
     raw_debug_switch_entity_id = registry.async_get_entity_id(
         "switch", DOMAIN, "test-eco-ref_raw_co2_debug"
     )
+    bottle_empty_entity_id = registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, "test-eco-ref_bottle_empty"
+    )
+    second_water_entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, "second-eco-ref_total_water_usage"
+    )
+    second_bottle_entity_id = registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, "second-eco-ref_bottle_empty"
+    )
 
     assert water_usage_entity_id is not None
     assert total_water_entity_id is not None
@@ -79,7 +117,18 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
     assert install_date_entity_id is not None
     assert last_receive_entity_id is not None
     assert raw_debug_switch_entity_id is not None
+    assert bottle_empty_entity_id is not None
+    assert second_water_entity_id is not None
+    assert second_bottle_entity_id is not None
+    assert hass.states.get(bottle_empty_entity_id).state == "on"
+    assert hass.states.get(second_bottle_entity_id).state == "on"
+    assert set(mock_config_entry.runtime_data.coordinators) == {
+        "test-eco-ref",
+        "second-eco-ref",
+    }
+    assert mock_config_entry.unique_id == "account_portal-account-id"
+    assert mock_config_entry.data["user_id"] == "portal-account-id"
 
     assert hass.states.get(install_date_entity_id).state == "2024-01-01T00:00:00+00:00"
     assert hass.states.get(last_receive_entity_id).state == "2025-06-05T21:50:00+00:00"
-    assert hass.config_entries.async_entries(DOMAIN)
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1

@@ -137,6 +137,17 @@ def _isoish(value: str | None) -> str | None:
     return value.replace(" ", "T") if value else None
 
 
+def _same_account(info: dict[str, Any], entry: ConfigEntry) -> bool:
+    """Accept a different first box only when the account itself is unchanged."""
+    if entry.data.get("user_id") and info.get("user_id"):
+        if str(entry.data["user_id"]) == str(info["user_id"]):
+            return True
+        # Legacy mobile and new portal accounts use different user-ID namespaces.
+    refs = {box["eco_ref"] for box in entry.data.get("devices", [])}
+    refs.add(entry.data.get("eco_ref"))
+    return info.get("eco_ref") in refs
+
+
 class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Ecobulles."""
 
@@ -166,7 +177,11 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                 errors["base"] = "unknown"
             else:
                 if info["title"]:
-                    client = EcobullesClient(self.hass)
+                    client = EcobullesClient(
+                        self.hass,
+                        email=user_input[CONF_EMAIL],
+                        password=user_input[CONF_PASSWORD],
+                    )
                     device_info_raw = await client.get_device_info(info["eco_ref"])
                     entry_data = {
                         **user_input,
@@ -175,10 +190,26 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                     }
                     entry_data.pop("title", None)
 
-                    existing_entry = await self.async_set_unique_id(info["eco_ref"])
+                    account_key = (
+                        f"account_{info['user_id']}" if info.get("user_id")
+                        else info["eco_ref"]
+                    )
+                    existing_entry = await self.async_set_unique_id(account_key)
+                    if existing_entry is None:
+                        existing_entry = next(
+                            (
+                                entry
+                                for entry in self.hass.config_entries.async_entries(DOMAIN)
+                                if _same_account(info, entry)
+                            ),
+                            None,
+                        )
                     if existing_entry:
+                        entry_data["eco_ref"] = existing_entry.data["eco_ref"]
+                        if "devices" in existing_entry.data:
+                            entry_data["devices"] = existing_entry.data["devices"]
                         self.hass.config_entries.async_update_entry(
-                            existing_entry, data=entry_data
+                            existing_entry, data=entry_data, unique_id=account_key
                         )
                         await self.hass.config_entries.async_reload(
                             existing_entry.entry_id
@@ -214,7 +245,7 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             else:
-                if info["eco_ref"] != entry.data.get("eco_ref"):
+                if not _same_account(info, entry):
                     errors["base"] = "different_device"
                 else:
                     self.hass.config_entries.async_update_entry(entry, data=merged_data)
@@ -252,10 +283,14 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             else:
-                if info["eco_ref"] != entry.data.get("eco_ref"):
+                if not _same_account(info, entry):
                     errors["base"] = "different_device"
                 else:
-                    client = EcobullesClient(self.hass)
+                    client = EcobullesClient(
+                        self.hass,
+                        email=user_input[CONF_EMAIL],
+                        password=user_input[CONF_PASSWORD],
+                    )
                     device_info_raw = await client.get_device_info(info["eco_ref"])
                     entry_data = {
                         **user_input,
@@ -263,6 +298,9 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                         **_device_info_from_response(device_info_raw or {}),
                     }
                     entry_data.pop("title", None)
+                    entry_data["eco_ref"] = entry.data["eco_ref"]
+                    if "devices" in entry.data:
+                        entry_data["devices"] = entry.data["devices"]
                     self.hass.config_entries.async_update_entry(
                         entry, data=entry_data, title=info["title"]
                     )
@@ -295,8 +333,14 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                if info["title"]:
-                    client = EcobullesClient(self.hass)
+                if not _same_account(info, self.config_entry):
+                    errors["base"] = "different_device"
+                elif info["title"]:
+                    client = EcobullesClient(
+                        self.hass,
+                        email=user_input[CONF_EMAIL],
+                        password=user_input[CONF_PASSWORD],
+                    )
                     device_info_raw = await client.get_device_info(info["eco_ref"])
                     entry_data = {
                         **user_input,
@@ -305,6 +349,9 @@ class OptionsFlowHandler(OptionsFlowWithConfigEntry):
                     }
                     # Ensure you're not storing 'title' in the entry data, as it was used just for entry naming
                     entry_data.pop("title", None)
+                    entry_data["eco_ref"] = self.config_entry.data["eco_ref"]
+                    if "devices" in self.config_entry.data:
+                        entry_data["devices"] = self.config_entry.data["devices"]
                     options = {
                         CONF_ENABLE_RAW_CO2_SENSOR: bool(
                             entry_data.pop(CONF_ENABLE_RAW_CO2_SENSOR, False)

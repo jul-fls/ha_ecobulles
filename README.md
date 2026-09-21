@@ -1,6 +1,6 @@
 # ha_ecobulles
 
-Home Assistant custom integration for an [Ecobulles](https://ecobulles.com) installation.
+Home Assistant custom integration for an [Ecobulles](https://ecobulles.com) installation, using the [Ecobulles customer portal](https://portail.ecobulles.com/login).
 
 [![CI](https://github.com/jul-fls/ha_ecobulles/actions/workflows/ci.yml/badge.svg)](https://github.com/jul-fls/ha_ecobulles/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/jul-fls/ha_ecobulles/branch/master/graph/badge.svg)](https://codecov.io/gh/jul-fls/ha_ecobulles)
@@ -21,10 +21,15 @@ Home Assistant custom integration for an [Ecobulles](https://ecobulles.com) inst
 
 ### Configuration parameters
 
-During setup, enter your Ecobulles account email/password, the CO2 mass in the
+During setup, enter the same email/password you use for the new Ecobulles customer portal, the CO2 mass in the
 bottle, and the micrometric screw setting. Advanced settings expose the CO2
 pressure, estimated dose range, reference valve pulse, and polling interval.
 The raw CO2 debug sensor can be enabled later from the integration options.
+One Home Assistant integration entry represents the Ecobulles account. Every
+box linked to that account becomes a separate Home Assistant device with its
+own water, CO2, alert, and bottle-empty entities. Reload the integration after
+linking another box to the same account to discover it. The raw CO2 debug
+switch is account-wide and affects the raw sensor on every box.
 
 ### Data updates and availability
 
@@ -51,7 +56,9 @@ This integration targets Ecobulles cloud-connected CO2 water treatment devices,
 tested with Ecobulles Expert. The API does not currently expose a formal model
 field, LAN discovery, or official CO2 mass counters. CO2 bottle usage is
 therefore estimated from public Ecobulles dose guidance and observed valve-open
-time, not measured directly.
+time, not measured directly. The portal currently returns `total_gas = 0` for
+the tested device even while its bottle-empty input is active. In that case,
+the estimate becomes unavailable rather than reporting a misleading `0%`.
 
 ### Use cases and examples
 
@@ -76,8 +83,8 @@ actions:
 
 ### Troubleshooting
 
-- If all entities are unavailable, check that the Ecobulles cloud and your
-  credentials are working in the official app.
+- If all entities are unavailable, check that your credentials work at
+  [portail.ecobulles.com](https://portail.ecobulles.com/login).
 - If authentication fails, reconfigure or reload the integration from Home
   Assistant.
 - If water totals look wrong after a manual reset, keep the current and total
@@ -154,7 +161,7 @@ the README badge shows the current percentage dynamically.
 ### Python library
 
 The Ecobulles cloud client lives in
-[`jul-fls/ecobulles_api`](https://github.com/jul-fls/ecobulles_api) as the
+[`jul-fls/pyecobulles`](https://github.com/jul-fls/pyecobulles) as the
 `pyecobulles` async Python package. This keeps Home Assistant-specific code
 focused on config entries, coordinators, devices, and entities, while the API
 transport is reusable and publishable on PyPI for a future Home Assistant Core
@@ -194,6 +201,7 @@ Ecobulles Water Usage Total                     = 165901 L
 | --- | --- |
 | `Ecobulles CO2 Injection Time` | Cumulative CO2 electrovalve open time, derived from the API `total_gas` value. The API value appears to be milliseconds; the sensor displays seconds. |
 | `Ecobulles Estimated CO2 Bottle Usage` | Experimental estimate of bottle usage, derived from the configured bottle CO2 mass, micrometric screw setting, the inferred 85-150 mg/L middle dose range, and the observed/default 1500 ms/L pulse. |
+| `Ecobulles CO2 Bottle Empty` | Direct device input from the portal's latest reading. It reports a problem when the bottle is empty, independently of the gas counter. |
 | `Ecobulles Raw CO2 Value` | Optional diagnostic sensor, enabled by the `Ecobulles Raw CO2 Debug` switch, exposing the untouched CO2 value returned by the API so users can study its behavior over time. |
 
 #### Diagnostic sensors
@@ -230,11 +238,16 @@ and unknown prefixes remain simply `Ecobulles`.
 
 ### Paramètres de configuration
 
-À l'installation, renseignez l'email/mot de passe Ecobulles, la masse de CO2
+À l'installation, renseignez les mêmes identifiants que sur le [nouveau portail Ecobulles](https://portail.ecobulles.com/login), la masse de CO2
 dans la bouteille et le réglage de la vis micrométrique. Les options avancées
 exposent la pression CO2, la plage de dose estimée, l'impulsion de référence et
 l'intervalle de rafraîchissement. Le capteur CO2 brut peut être activé ensuite
 depuis les options de l'intégration.
+Une seule configuration Home Assistant représente le compte Ecobulles. Chaque
+boîtier associé à ce compte devient un appareil Home Assistant distinct, avec
+ses propres capteurs d'eau, de CO2, d'alertes et de bouteille vide. Rechargez
+l'intégration après avoir associé un nouveau boîtier au compte. L'interrupteur
+de diagnostic CO2 brut est commun au compte et affecte tous les boîtiers.
 
 ### Mise à jour des données et disponibilité
 
@@ -262,7 +275,10 @@ L'intégration cible les appareils Ecobulles connectés au cloud, testée avec u
 Ecobulles Expert. L'API n'expose actuellement pas de champ modèle officiel, pas
 de découverte LAN, ni de compteur officiel de masse CO2. L'utilisation de
 bouteille CO2 est donc estimée à partir des indications publiques Ecobulles et
-du temps d'ouverture observé de l'électrovanne, pas mesurée directement.
+du temps d'ouverture observé de l'électrovanne, pas mesurée directement. Sur le
+boîtier testé, le portail retourne actuellement `total_gas = 0` même quand le
+signal « bouteille vide » est actif : l'estimation est alors indisponible, et
+non affichée à tort à `0 %`.
 
 ### Cas d'usage et exemples
 
@@ -288,8 +304,8 @@ actions:
 
 ### Dépannage
 
-- Si toutes les entités sont indisponibles, vérifiez que le cloud Ecobulles et
-  vos identifiants fonctionnent dans l'application officielle.
+- Si toutes les entités sont indisponibles, vérifiez que vos identifiants
+  fonctionnent sur [portail.ecobulles.com](https://portail.ecobulles.com/login).
 - Si l'authentification échoue, reconfigurez ou rechargez l'intégration depuis
   Home Assistant.
 - Si les totaux d'eau semblent incohérents après une remise à zéro manuelle,
@@ -421,6 +437,7 @@ Consommation d'eau totale                              = 165901 L
 | --- | --- |
 | `Temps d'injection CO2` | Temps cumulé d'ouverture de l'électrovanne CO2, dérivé de la valeur API `total_gas`. Cette valeur semble être exprimée en millisecondes ; le capteur l'affiche en secondes. |
 | `Utilisation estimée de la bouteille CO2` | Estimation expérimentale de l'utilisation de la bouteille, dérivée de la masse de CO2 configurée, du réglage de vis micrométrique, de la plage médiane estimée 85-150 mg/L et de l'impulsion observée/par défaut de 1500 ms/L. |
+| `Bouteille de CO2 vide` | Entrée directe du boîtier, lue sur le portail. Le capteur signale un problème lorsque la bouteille est vide, indépendamment du compteur de gaz. |
 | `Valeur CO2 brute` | Capteur de diagnostic optionnel, activé par l'interrupteur `Debug CO2 brut`, qui expose la valeur CO2 brute renvoyée par l'API afin d'étudier son comportement dans le temps. |
 
 #### Capteurs de diagnostic

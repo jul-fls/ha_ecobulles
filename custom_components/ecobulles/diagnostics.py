@@ -26,7 +26,14 @@ async def async_get_config_entry_diagnostics(
     """Return diagnostics for a config entry."""
     coordinator_data: dict[str, Any] = {}
     if hasattr(entry, "runtime_data"):
-        coordinator_data = getattr(entry.runtime_data.coordinator, "data", {}) or {}
+        runtime = entry.runtime_data
+        if hasattr(runtime, "coordinators"):
+            coordinator_data = {
+                f"device_{index}": coordinator.data or {}
+                for index, coordinator in enumerate(runtime.coordinators.values(), 1)
+            }
+        else:
+            coordinator_data = getattr(runtime.coordinator, "data", {}) or {}
 
     return {
         "entry": {

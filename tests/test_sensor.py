@@ -82,7 +82,9 @@ async def test_sensor_setup_without_raw_debug(hass) -> None:
         data={"eco_ref": "test-eco-ref"},
         options={CONF_ENABLE_RAW_CO2_SENSOR: False},
     )
-    mock_config_entry.runtime_data = SimpleNamespace(coordinator=_coordinator(hass))
+    mock_config_entry.runtime_data = SimpleNamespace(
+        coordinators={"test-eco-ref": _coordinator(hass)}
+    )
     add_entities = MagicMock()
 
     await async_setup_entry(hass, mock_config_entry, add_entities)
@@ -91,6 +93,23 @@ async def test_sensor_setup_without_raw_debug(hass) -> None:
     assert "test-eco-ref_raw_co2_value" not in unique_ids
     assert "test-eco-ref_co2_usage" in unique_ids
     assert "test-eco-ref_active_alerts" in unique_ids
+
+
+async def test_alerts_are_requested_for_the_specific_box(hass) -> None:
+    """Alerts from one account's first device cannot contaminate another."""
+    alerts = AsyncMock(return_value=[{"currently": 1, "alert_type": 2}])
+    api = SimpleNamespace(get_alerts=alerts)
+    coordinator = _coordinator(
+        hass,
+        api=api,
+        config={"email": "test@example.com", "password": "secret"},
+    )
+    coordinator.eco_ref = "second-eco-ref"
+
+    assert await coordinator._async_fetch_login_payload() == {
+        "data": {"conso": {"alert": [{"currently": 1, "alert_type": 2}]}}
+    }
+    alerts.assert_awaited_once_with("second-eco-ref")
 
 
 async def test_coordinator_update_success_with_alerts_and_bottle_change(hass) -> None:
@@ -271,5 +290,18 @@ async def test_estimated_co2_bottle_usage_unavailable_for_invalid_inputs(
 
     assert (
         EstimatedCO2BottleUsageSensor(coordinator, "eco-ref", config).native_value
+        is None
+    )
+
+
+async def test_estimate_is_unavailable_when_bottle_empty_and_gas_counter_zero(hass) -> None:
+    """A portal-side zero must not claim an empty bottle is 0% used."""
+    coordinator = _coordinator(hass)
+    coordinator.async_set_updated_data({**_usage(total_gas=0), "bottle_empty": True})
+
+    assert (
+        EstimatedCO2BottleUsageSensor(
+            coordinator, "eco-ref", {CONF_CO2_BOTTLE_WEIGHT_KG: 10}
+        ).native_value
         is None
     )

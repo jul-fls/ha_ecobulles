@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
+import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
@@ -15,14 +18,30 @@ from .const import DOMAIN
 from .device import model_from_serial_number
 from .sensor import EcobullesCoordinator
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
+PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.SWITCH]
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
 class EcobullesRuntimeData:
     """Runtime data stored on the config entry."""
 
-    coordinator: EcobullesCoordinator
+    coordinators: dict[str, EcobullesCoordinator]
+
+    @property
+    def coordinator(self) -> EcobullesCoordinator:
+        """Keep compatibility with the original single-box runtime data."""
+        return next(iter(self.coordinators.values()))
+
+
+def _box_metadata(box: dict[str, Any]) -> dict[str, Any]:
+    """Keep only the device metadata needed to create the HA device."""
+    return {
+        "eco_ref": str(box["eco_ref"]),
+        "name": box.get("name"),
+        "num_serie": box.get("num_serie"),
+        "firmware_version": box.get("firm_ver") or box.get("firmware_version"),
+    }
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -32,49 +51,70 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 
-    eco_ref: str = entry.data["eco_ref"]
-    boitier_name = entry.data.get("name")
-    num_serie = entry.data.get("num_serie")
-    firmware_version = entry.data.get("firmware_version")
-    if eco_ref and entry.unique_id != eco_ref:
-        hass.config_entries.async_update_entry(entry, unique_id=eco_ref)
-
-    # Create or get an instance of the device registry
-    device_registry = dr.async_get(hass)
-
-    # Create or update the device in the device registry
-    device_registry.async_get_or_create(
-        config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, eco_ref)},  # Use eco_ref or another unique identifier
-        name=boitier_name,
-        manufacturer="Ecobulles",
-        model=model_from_serial_number(num_serie),
-        sw_version=firmware_version,
-        serial_number=num_serie,
-        connections={(CONNECTION_NETWORK_MAC, eco_ref)},
-    )
-
-    # Store additional device-specific information in hass.data for internal use
-    coordinator = EcobullesCoordinator(
+    client = EcobullesClient(
         hass,
-        EcobullesClient(hass),
-        eco_ref,
-        entry.data,
+        email=entry.data[CONF_EMAIL],
+        password=entry.data[CONF_PASSWORD],
     )
-    await coordinator.async_config_entry_first_refresh()
-    entry.runtime_data = EcobullesRuntimeData(coordinator=coordinator)
+    saved_boxes = entry.data.get("devices") or [
+        {
+            "eco_ref": entry.data["eco_ref"],
+            "name": entry.data.get("name"),
+            "num_serie": entry.data.get("num_serie"),
+            "firmware_version": entry.data.get("firmware_version"),
+        }
+    ]
+    try:
+        discovered = await client.list_devices()
+    except (RuntimeError, TimeoutError):
+        _LOGGER.warning("Cannot refresh Ecobulles account device list; using saved devices")
+        discovered = []
+    boxes = [_box_metadata(box) for box in discovered if box.get("eco_ref")]
+    if not boxes:
+        boxes = saved_boxes
+    # Preserve original metadata if the listing omits a field used by the device registry.
+    saved_by_ref = {box["eco_ref"]: box for box in saved_boxes}
+    boxes = [
+        {
+            **saved_by_ref.get(box["eco_ref"], {}),
+            **{key: value for key, value in box.items() if value is not None},
+        }
+        for box in boxes
+    ]
+    boxes.sort(key=lambda box: box["eco_ref"] != entry.data["eco_ref"])
+    account_id = client.account_id or entry.data.get("user_id")
+    updated_data = {**entry.data, "devices": boxes, "user_id": account_id}
+    account_key = f"account_{account_id}" if account_id else entry.unique_id
+    if updated_data != dict(entry.data) or account_key != entry.unique_id:
+        hass.config_entries.async_update_entry(
+            entry, data=updated_data, unique_id=account_key
+        )
 
-    hass.data[DOMAIN][entry.entry_id] = {
-        "eco_ref": eco_ref,
-        "install_date": entry.data.get("install_date"),
-        "last_date_receive": entry.data.get("last_date_receive"),
-        "activated": entry.data.get("activated"),
-        "locked": entry.data.get("locked"),
-        "suspended": entry.data.get("suspended"),
-        "suspended_time": entry.data.get("suspended_time"),
-        "suspended_date": entry.data.get("suspended_date"),
-        "last_alert": entry.data.get("last_alert"),
-    }
+    device_registry = dr.async_get(hass)
+    coordinators: dict[str, EcobullesCoordinator] = {}
+    for box in boxes:
+        eco_ref = box["eco_ref"]
+        serial = box.get("num_serie")
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, eco_ref)},
+            name=box.get("name"),
+            manufacturer="Ecobulles",
+            model=model_from_serial_number(serial),
+            sw_version=box.get("firmware_version"),
+            serial_number=serial,
+            connections={(CONNECTION_NETWORK_MAC, eco_ref)},
+        )
+        coordinators[eco_ref] = EcobullesCoordinator(hass, client, eco_ref, entry.data)
+
+    await asyncio.gather(
+        *(
+            coordinator.async_config_entry_first_refresh()
+            for coordinator in coordinators.values()
+        )
+    )
+    entry.runtime_data = EcobullesRuntimeData(coordinators=coordinators)
+    hass.data[DOMAIN][entry.entry_id] = {"devices": boxes}
 
     # Forward the entry setup to any platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -1,5 +1,10 @@
 {
   "entity": {
+    "binary_sensor": {
+      "bottle_empty": {
+        "default": "mdi:gas-cylinder"
+      }
+    },
     "sensor": {
       "active_alerts": {
         "default": "mdi:alert-circle-outline"

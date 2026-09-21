@@ -13,10 +13,17 @@ class EcobullesClient(PyEcobullesClient):
     """pyecobulles client wired to Home Assistant's shared web session."""
 
     def __init__(
-        self, hass: HomeAssistant | None = None, session: ClientSession | None = None
+        self,
+        hass: HomeAssistant | None = None,
+        session: ClientSession | None = None,
+        *,
+        email: str | None = None,
+        password: str | None = None,
     ) -> None:
         """Initialize the client with Home Assistant's aiohttp session."""
         super().__init__(
             session=session or (async_get_clientsession(hass) if hass else None),
             now_fn=hass_now,
+            email=email,
+            password=password,
         )
