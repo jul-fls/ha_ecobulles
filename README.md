@@ -57,9 +57,10 @@ This integration targets Ecobulles cloud-connected CO2 water treatment devices,
 tested with Ecobulles Expert. The API does not currently expose a formal model
 field, LAN discovery, or official CO2 mass counters. CO2 bottle usage is
 therefore estimated from public Ecobulles dose guidance and observed valve-open
-time, not measured directly. The portal currently returns `total_gas = 0` for
-the tested device even while its bottle-empty input is active. In that case,
-the estimate becomes unavailable rather than reporting a misleading `0%`.
+time, not measured directly. If the portal reports `total_gas = 0` while the
+decoded bottle-empty signal is active, the estimate becomes unavailable rather
+than reporting a misleading `0%`. The bottle input is active-low: raw `1` means
+normal, while raw `0` means empty.
 
 ### Use cases and examples
 
@@ -278,9 +279,10 @@ Ecobulles Expert. L'API n'expose actuellement pas de champ modèle officiel, pas
 de découverte LAN, ni de compteur officiel de masse CO2. L'utilisation de
 bouteille CO2 est donc estimée à partir des indications publiques Ecobulles et
 du temps d'ouverture observé de l'électrovanne, pas mesurée directement. Sur le
-boîtier testé, le portail retourne actuellement `total_gas = 0` même quand le
-signal « bouteille vide » est actif : l'estimation est alors indisponible, et
-non affichée à tort à `0 %`.
+boîtier testé, l'entrée « bouteille vide » fonctionne en logique inversée :
+la valeur brute `1` indique un état normal, et `0` indique une bouteille vide.
+Si le portail renvoie `total_gas = 0` alors que la bouteille est signalée vide,
+l'estimation est indisponible plutôt qu'affichée à tort à `0 %`.
 
 ### Cas d'usage et exemples
 
@@ -439,7 +441,7 @@ Consommation d'eau totale                              = 165901 L
 | --- | --- |
 | `Temps d'injection CO2` | Temps cumulé d'ouverture de l'électrovanne CO2, dérivé de la valeur API `total_gas`. Cette valeur semble être exprimée en millisecondes ; le capteur l'affiche en secondes. |
 | `Utilisation estimée de la bouteille CO2` | Estimation expérimentale de l'utilisation de la bouteille, dérivée de la masse de CO2 configurée, du réglage de vis micrométrique, de la plage médiane estimée 85-150 mg/L et de l'impulsion observée/par défaut de 1500 ms/L. |
-| `Bouteille de CO2 vide` | Entrée directe du boîtier, lue sur le portail. Le capteur signale un problème lorsque la bouteille est vide, indépendamment du compteur de gaz. |
+| `Bouteille de CO2 vide` | Entrée directe du boîtier, lue sur le portail. Le contact brut `1` signifie normal et `0` signifie bouteille vide ; la valeur brute figure aussi dans les attributs du capteur. |
 | `Valeur CO2 brute` | Capteur de diagnostic optionnel, activé par l'interrupteur `Debug CO2 brut`, qui expose la valeur CO2 brute renvoyée par l'API afin d'étudier son comportement dans le temps. |
 
 #### Capteurs de diagnostic

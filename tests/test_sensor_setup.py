@@ -76,7 +76,8 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
                             "firm_ver": "1.0",
                             "last_alert": None,
                             "name": "Test box",
-                            "bottle_empty": True,
+                            "bottle_empty": False,
+                            "bottle_empty_raw": 1,
                         }
                     }
                 }
@@ -128,8 +129,8 @@ async def test_sensor_setup_with_raw_co2_debug_enabled(hass, mock_config_entry) 
     assert bottle_empty_entity_id is not None
     assert second_water_entity_id is not None
     assert second_bottle_entity_id is not None
-    assert hass.states.get(bottle_empty_entity_id).state == "on"
-    assert hass.states.get(second_bottle_entity_id).state == "on"
+    assert hass.states.get(bottle_empty_entity_id).state == "off"
+    assert hass.states.get(second_bottle_entity_id).state == "off"
     assert set(mock_config_entry.runtime_data.coordinators) == {
         "test-eco-ref",
         "second-eco-ref",

@@ -64,5 +64,6 @@ class EcobullesBottleEmptySensor(
     def extra_state_attributes(self) -> dict[str, Any]:
         """Expose when the bottle-empty input was last reported."""
         return {
-            "last_reading": self.coordinator.data.get("bottle_empty_timestamp")
+            "last_reading": self.coordinator.data.get("bottle_empty_timestamp"),
+            "raw_contact_value": self.coordinator.data.get("bottle_empty_raw"),
         }

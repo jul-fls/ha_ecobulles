@@ -247,6 +247,7 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "firm_ver": box.get("firm_ver"),
             "last_alert": box.get("last_alert"),
             "bottle_empty": box.get("bottle_empty"),
+            "bottle_empty_raw": box.get("bottle_empty_raw"),
             "bottle_empty_timestamp": _isoish(box.get("bottle_empty_timestamp")),
             "active_alerts": active_alerts,
             "active_alert_count": len(active_alerts),
