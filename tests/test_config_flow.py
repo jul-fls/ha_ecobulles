@@ -9,6 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ecobulles.config_flow import CannotConnect, InvalidAuth
 from custom_components.ecobulles.const import (
+    CONF_BOTTLE_EMPTY_CONTACT_VALUE,
     CONF_CO2_BOTTLE_WEIGHT_KG,
     CONF_CO2_MICROMETRIC_SCREW_SETTING,
     CONF_ENABLE_RAW_CO2_SENSOR,
@@ -195,9 +196,7 @@ def test_legacy_account_id_migrates_by_box_reference() -> None:
         domain=DOMAIN,
         data={"user_id": "legacy-id", "eco_ref": "original-box"},
     )
-    assert _same_account(
-        {"user_id": "portal-id", "eco_ref": "original-box"}, entry
-    )
+    assert _same_account({"user_id": "portal-id", "eco_ref": "original-box"}, entry)
     assert not _same_account(
         {"user_id": "different-id", "eco_ref": "unknown-box"}, entry
     )
@@ -525,9 +524,7 @@ async def test_reconfigure_updates_entry(hass, mock_config_entry) -> None:
     assert mock_config_entry.title == FLOW_INFO["title"]
 
 
-async def test_options_flow_updates_data_and_options(
-    hass, mock_config_entry
-) -> None:
+async def test_options_flow_updates_data_and_options(hass, mock_config_entry) -> None:
     """Options flow updates config data and the raw debug option."""
     mock_config_entry.add_to_hass(hass)
 
@@ -546,22 +543,24 @@ async def test_options_flow_updates_data_and_options(
             AsyncMock(return_value=True),
         ),
     ):
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        result = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
             user_input={
                 **USER_INPUT,
+                "advanced_options": {CONF_BOTTLE_EMPTY_CONTACT_VALUE: 0},
                 CONF_ENABLE_RAW_CO2_SENSOR: True,
             },
         )
 
     assert result["type"] == "create_entry"
     assert mock_config_entry.options[CONF_ENABLE_RAW_CO2_SENSOR] is True
+    assert mock_config_entry.data[CONF_BOTTLE_EMPTY_CONTACT_VALUE] == 0
 
 
-async def test_options_flow_handles_connection_error(
-    hass, mock_config_entry
-) -> None:
+async def test_options_flow_handles_connection_error(hass, mock_config_entry) -> None:
     """Options flow keeps the form open on connection errors."""
     mock_config_entry.add_to_hass(hass)
 
@@ -569,7 +568,9 @@ async def test_options_flow_handles_connection_error(
         "custom_components.ecobulles.config_flow.validate_input",
         AsyncMock(side_effect=CannotConnect()),
     ):
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        result = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
             user_input=USER_INPUT,
@@ -587,7 +588,9 @@ async def test_options_flow_handles_invalid_auth(hass, mock_config_entry) -> Non
         "custom_components.ecobulles.config_flow.validate_input",
         AsyncMock(side_effect=InvalidAuth()),
     ):
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        result = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
             user_input=USER_INPUT,
@@ -605,7 +608,9 @@ async def test_options_flow_handles_unknown_error(hass, mock_config_entry) -> No
         "custom_components.ecobulles.config_flow.validate_input",
         AsyncMock(side_effect=ValueError("boom")),
     ):
-        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        result = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
             user_input=USER_INPUT,
@@ -618,4 +623,6 @@ async def test_options_flow_handles_unknown_error(hass, mock_config_entry) -> No
 @pytest.fixture
 def configured_entry() -> MockConfigEntry:
     """Return a configured Ecobulles entry."""
-    return MockConfigEntry(domain=DOMAIN, data={**USER_INPUT, "eco_ref": "test-eco-ref"})
+    return MockConfigEntry(
+        domain=DOMAIN, data={**USER_INPUT, "eco_ref": "test-eco-ref"}
+    )

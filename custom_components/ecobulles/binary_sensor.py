@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_BOTTLE_EMPTY_CONTACT_VALUE, DOMAIN
 from .sensor import EcobullesCoordinator
 
 PARALLEL_UPDATES = 0
@@ -51,8 +51,7 @@ class EcobullesBottleEmptySensor(
     def available(self) -> bool:
         """Avoid claiming the bottle is full if no input has been received."""
         return (
-            super().available
-            and self.coordinator.data.get("bottle_empty") is not None
+            super().available and self.coordinator.data.get("bottle_empty") is not None
         )
 
     @property
@@ -66,4 +65,7 @@ class EcobullesBottleEmptySensor(
         return {
             "last_reading": self.coordinator.data.get("bottle_empty_timestamp"),
             "raw_contact_value": self.coordinator.data.get("bottle_empty_raw"),
+            "configured_empty_contact_value": self.coordinator.config.get(
+                CONF_BOTTLE_EMPTY_CONTACT_VALUE
+            ),
         }

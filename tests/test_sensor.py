@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ecobulles.const import (
+    CONF_BOTTLE_EMPTY_CONTACT_VALUE,
     CONF_CO2_BOTTLE_WEIGHT_KG,
     CONF_CO2_MAX_DOSE_MG_PER_L,
     CONF_CO2_MICROMETRIC_SCREW_SETTING,
@@ -112,8 +113,8 @@ async def test_alerts_are_requested_for_the_specific_box(hass) -> None:
     alerts.assert_awaited_once_with("second-eco-ref")
 
 
-async def test_coordinator_update_success_with_alerts_and_bottle_change(hass) -> None:
-    """Coordinator merges usage, device metadata, alerts, and durable accounting."""
+async def test_coordinator_update_corrects_counter_resets(hass) -> None:
+    """Coordinator merges metadata and preserves resetting water/CO2 counters."""
     api = SimpleNamespace(
         get_total_water_and_co2_usage=AsyncMock(return_value=_usage(total_eau=7)),
         get_device_info=AsyncMock(return_value=_device()),
@@ -133,7 +134,11 @@ async def test_coordinator_update_success_with_alerts_and_bottle_change(hass) ->
     coordinator = _coordinator(
         hass,
         api=api,
-        config={"email": "user@example.com", "password": "secret"},
+        config={
+            "email": "user@example.com",
+            "password": "secret",
+            CONF_BOTTLE_EMPTY_CONTACT_VALUE: 0,
+        },
     )
     coordinator._water_usage_state = None
 
@@ -145,21 +150,65 @@ async def test_coordinator_update_success_with_alerts_and_bottle_change(hass) ->
                 return_value={
                     "completed_cycles_liters": 0,
                     "cycle_water_liters": 165_000,
-                    "bottle_changes": 0,
                 }
             ),
         ),
-        patch.object(coordinator._store, "async_save", AsyncMock()) as save_mock,
+        patch.object(coordinator._store, "async_save", AsyncMock()) as water_save,
+        patch.object(
+            coordinator._co2_store,
+            "async_load",
+            AsyncMock(return_value={"offset_ms": 500_000, "last_raw_ms": 100_000}),
+        ),
+        patch.object(coordinator._co2_store, "async_save", AsyncMock()) as co2_save,
     ):
         data = await coordinator._async_update_data()
 
-    assert data["bottle_changed"] is True
+    assert data["water_counter_reset"] is True
     assert data["completed_cycles_liters"] == 165_000
     assert data["cycle_water_liters"] == 7
     assert data["total_water_liters"] == 165_007
+    assert data["total_gas_cumulative"] == 650_000
     assert data["active_alert_count"] == 1
     assert data["install_date"] == "2024-03-28T15:15:00"
-    save_mock.assert_awaited_once()
+    water_save.assert_awaited_once()
+    co2_save.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("configured_empty_value", "expected"),
+    [(None, None), (0, True), (1, False)],
+)
+async def test_bottle_contact_requires_installation_specific_polarity(
+    hass, configured_empty_value, expected
+) -> None:
+    """Never guess bottle state when installations disagree on contact polarity."""
+    device = _device()
+    device["data"]["boite"]["bottle_empty_raw"] = 0
+    config = {}
+    if configured_empty_value is not None:
+        config[CONF_BOTTLE_EMPTY_CONTACT_VALUE] = configured_empty_value
+    coordinator = _coordinator(
+        hass,
+        api=SimpleNamespace(
+            get_total_water_and_co2_usage=AsyncMock(return_value=_usage()),
+            get_device_info=AsyncMock(return_value=device),
+            get_login_payload=AsyncMock(return_value=None),
+        ),
+        config=config,
+    )
+
+    with (
+        patch.object(coordinator._store, "async_load", AsyncMock(return_value=None)),
+        patch.object(coordinator._store, "async_save", AsyncMock()),
+        patch.object(
+            coordinator._co2_store, "async_load", AsyncMock(return_value=None)
+        ),
+        patch.object(coordinator._co2_store, "async_save", AsyncMock()),
+    ):
+        data = await coordinator._async_update_data()
+
+    assert data["bottle_empty"] is expected
+    assert data["bottle_empty_raw"] == 0
 
 
 async def test_coordinator_update_fails_on_incomplete_payload(hass) -> None:
@@ -219,7 +268,6 @@ async def test_sensor_native_values_and_attributes(hass) -> None:
     coordinator.async_set_updated_data(
         {
             **_usage(total_gas=1500),
-            "bottle_changes": 2,
             "active_alert_count": 1,
             "active_alerts": [{"currently": "1"}],
         }
@@ -228,7 +276,6 @@ async def test_sensor_native_values_and_attributes(hass) -> None:
     described = EcobullesDescribedSensor(coordinator, "eco-ref", RAW_CO2_SENSOR)
     assert described.native_value == 1500
     assert described.device_info == {"identifiers": {(DOMAIN, "eco-ref")}}
-    assert described.extra_state_attributes["bottle_changes"] == 2
 
     alerts = ActiveAlertsSensor(coordinator, "eco-ref")
     assert alerts.native_value == 1
@@ -250,7 +297,9 @@ async def test_co2_injection_time_unavailable_without_raw_value(hass) -> None:
 async def test_estimated_co2_bottle_usage_sensor(hass) -> None:
     """Estimated bottle usage exposes value and calculation assumptions."""
     coordinator = _coordinator(hass)
-    coordinator.async_set_updated_data({**_usage(total_gas=900_000), "bottle_changes": 0})
+    coordinator.async_set_updated_data(
+        {**_usage(total_gas=900_000), "total_gas_cumulative": 900_000}
+    )
     config = {
         CONF_CO2_BOTTLE_WEIGHT_KG: 10,
         CONF_CO2_MICROMETRIC_SCREW_SETTING: 5,
@@ -294,7 +343,9 @@ async def test_estimated_co2_bottle_usage_unavailable_for_invalid_inputs(
     )
 
 
-async def test_estimate_is_unavailable_when_bottle_empty_and_gas_counter_zero(hass) -> None:
+async def test_estimate_is_unavailable_when_bottle_empty_and_gas_counter_zero(
+    hass,
+) -> None:
     """A portal-side zero must not claim an empty bottle is 0% used."""
     coordinator = _coordinator(hass)
     coordinator.async_set_updated_data({**_usage(total_gas=0), "bottle_empty": True})

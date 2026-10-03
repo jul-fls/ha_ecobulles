@@ -21,6 +21,11 @@ def main() -> int:
         check=True,
         cwd=ROOT,
     )
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_co2_usage_logic.py")],
+        check=True,
+        cwd=ROOT,
+    )
     print("Integration checks passed.")
     return 0
 

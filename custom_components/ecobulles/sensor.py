@@ -15,9 +15,15 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
-from homeassistant.const import EntityCategory, PERCENTAGE, UnitOfTime, UnitOfVolume
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    CONF_EMAIL,
+    CONF_PASSWORD,
+    EntityCategory,
+    PERCENTAGE,
+    UnitOfTime,
+    UnitOfVolume,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers import issue_registry as ir
@@ -31,6 +37,7 @@ from homeassistant.util.dt import as_utc, parse_datetime
 
 from .api import EcobullesClient
 from .const import (
+    CONF_BOTTLE_EMPTY_CONTACT_VALUE,
     CONF_CO2_BOTTLE_WEIGHT_KG,
     CONF_CO2_MAX_DOSE_MG_PER_L,
     CONF_CO2_MICROMETRIC_SCREW_SETTING,
@@ -41,6 +48,7 @@ from .const import (
     CONF_POLL_INTERVAL_SECONDS,
     DOMAIN,
 )
+from .co2_usage import CO2UsageState
 from .water_usage import WaterUsageState
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,6 +74,8 @@ WATER_SENSORS: tuple[EcobullesSensorDescription, ...] = (
         value_fn=lambda data: data["cycle_water_liters"],
     ),
     EcobullesSensorDescription(
+        # Keep the historical unique ID for existing installations. The entity
+        # now describes technical counter segments, not CO2 bottle cycles.
         key="water_usage_completed_bottles",
         translation_key="water_usage_completed_bottles",
         native_unit_of_measurement=UnitOfVolume.LITERS,
@@ -78,7 +88,7 @@ WATER_SENSORS: tuple[EcobullesSensorDescription, ...] = (
         translation_key="water_usage_total",
         native_unit_of_measurement=UnitOfVolume.LITERS,
         device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.TOTAL,
+        state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda data: data["total_water_liters"],
     ),
 )
@@ -168,7 +178,9 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.eco_ref = eco_ref
         self.config = config
         self._store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{eco_ref}.water_usage")
+        self._co2_store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{eco_ref}.co2_usage")
         self._water_usage_state: WaterUsageState | None = None
+        self._co2_usage_state: CO2UsageState | None = None
         poll_interval_seconds = int(config.get(CONF_POLL_INTERVAL_SECONDS, 120) or 120)
         super().__init__(
             hass,
@@ -180,8 +192,18 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _load_water_usage_state(self) -> WaterUsageState:
         """Load durable water accounting once."""
         if self._water_usage_state is None:
-            self._water_usage_state = WaterUsageState.from_dict(await self._store.async_load())
+            self._water_usage_state = WaterUsageState.from_dict(
+                await self._store.async_load()
+            )
         return self._water_usage_state
+
+    async def _load_co2_usage_state(self) -> CO2UsageState:
+        """Load durable CO2 counter accounting once."""
+        if self._co2_usage_state is None:
+            self._co2_usage_state = CO2UsageState.from_dict(
+                await self._co2_store.async_load()
+            )
+        return self._co2_usage_state
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch Ecobulles data and update cumulative water accounting."""
@@ -222,21 +244,34 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         box = device.get("data", {}).get("boite", {})
         active_alerts = _active_alerts_from_payloads(device, login_payload)
         water_state = await self._load_water_usage_state()
-        bottle_changed = water_state.apply_cycle_value(usage["total_eau"])
+        water_counter_reset = water_state.apply_cycle_value(usage["total_eau"])
         await self._store.async_save(water_state.as_dict())
+        co2_state = await self._load_co2_usage_state()
+        total_co2_ms = co2_state.apply(usage.get("total_gas"))
+        await self._co2_store.async_save(co2_state.as_dict())
 
-        if bottle_changed:
+        if water_counter_reset:
             _LOGGER.info(
-                "Detected CO2 bottle change for %s; closed cycle at %s L",
+                "Detected water counter reset for %s; preserved segment at %s L",
                 self.eco_ref,
                 water_state.completed_cycles_liters,
             )
 
+        raw_bottle_contact = box.get("bottle_empty_raw")
+        configured_empty_value = self.config.get(CONF_BOTTLE_EMPTY_CONTACT_VALUE)
+        bottle_empty = (
+            int(raw_bottle_contact) == int(configured_empty_value)
+            if raw_bottle_contact in (0, 1, "0", "1")
+            and configured_empty_value in (0, 1, "0", "1")
+            else None
+        )
+
         return {
             **usage,
+            "total_gas_cumulative": total_co2_ms,
             **water_state.as_dict(),
             "total_water_liters": water_state.total_water_liters,
-            "bottle_changed": bottle_changed,
+            "water_counter_reset": water_counter_reset,
             "install_date": _isoish(box.get("installdate", {}).get("date")),
             "last_date_receive": _isoish(box.get("lastdatereceive")),
             "activated": box.get("activated"),
@@ -246,8 +281,8 @@ class EcobullesCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "suspended_date": _isoish(box.get("suspended_date")),
             "firm_ver": box.get("firm_ver"),
             "last_alert": box.get("last_alert"),
-            "bottle_empty": box.get("bottle_empty"),
-            "bottle_empty_raw": box.get("bottle_empty_raw"),
+            "bottle_empty": bottle_empty,
+            "bottle_empty_raw": raw_bottle_contact,
             "bottle_empty_timestamp": _isoish(box.get("bottle_empty_timestamp")),
             "active_alerts": active_alerts,
             "active_alert_count": len(active_alerts),
@@ -308,8 +343,6 @@ def _float_config_value(config: dict[str, Any], key: str, default: float) -> flo
     return float(value)
 
 
-
-
 class EcobullesBaseSensor(CoordinatorEntity[EcobullesCoordinator], SensorEntity):
     """Base Ecobulles sensor."""
 
@@ -331,7 +364,7 @@ class EcobullesBaseSensor(CoordinatorEntity[EcobullesCoordinator], SensorEntity)
         return {
             "eco_ref": self.eco_ref,
             "last_updated": self.coordinator.data.get("last_updated"),
-            "bottle_changes": self.coordinator.data.get("bottle_changes"),
+            "water_counter_reset": self.coordinator.data.get("water_counter_reset"),
         }
 
 
@@ -402,7 +435,9 @@ class CO2InjectionTimeSensor(EcobullesBaseSensor):
     @property
     def native_value(self) -> float | None:
         """Return cumulative CO2 valve-open time in seconds."""
-        total_gas = self.coordinator.data.get("total_gas")
+        total_gas = self.coordinator.data.get(
+            "total_gas_cumulative", self.coordinator.data.get("total_gas")
+        )
         if total_gas is None:
             return None
         return round(int(total_gas) / 1000, 3)
@@ -413,7 +448,10 @@ class CO2InjectionTimeSensor(EcobullesBaseSensor):
         return {
             **super().extra_state_attributes,
             "raw_total_gas_ms": self.coordinator.data.get("total_gas"),
-            "interpretation": "cumulative CO2 electrovalve open time",
+            "corrected_total_gas_ms": self.coordinator.data.get("total_gas_cumulative"),
+            "interpretation": (
+                "cumulative CO2 electrovalve open time, corrected for counter resets"
+            ),
         }
 
 
@@ -437,7 +475,9 @@ class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
     @property
     def native_value(self) -> float | None:
         """Return estimated bottle usage percentage."""
-        total_gas = self.coordinator.data.get("total_gas")
+        total_gas = self.coordinator.data.get(
+            "total_gas_cumulative", self.coordinator.data.get("total_gas")
+        )
         flow_rate = self._estimated_flow_rate_g_per_min
         bottle_weight_kg = _float_config_value(
             self.config, CONF_CO2_BOTTLE_WEIGHT_KG, 10
@@ -484,7 +524,12 @@ class EstimatedCO2BottleUsageSensor(EcobullesBaseSensor):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Expose the assumptions used by the estimate."""
-        total_gas = self.coordinator.data.get("total_gas") or 0
+        total_gas = (
+            self.coordinator.data.get(
+                "total_gas_cumulative", self.coordinator.data.get("total_gas")
+            )
+            or 0
+        )
         flow_rate = self._estimated_flow_rate_g_per_min
         open_minutes = int(total_gas) / 1000 / 60
         return {

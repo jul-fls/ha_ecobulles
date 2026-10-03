@@ -1,5 +1,5 @@
 homeassistant
-pyecobulles==0.2.2
+pyecobulles==0.2.3
 pytest
 pytest-asyncio
 pytest-cov

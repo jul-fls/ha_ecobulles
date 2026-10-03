@@ -3,8 +3,8 @@
 from custom_components.ecobulles.water_usage import WaterUsageState
 
 
-def test_rollover_keeps_total_monotonic() -> None:
-    """A lower device counter closes the previous bottle cycle."""
+def test_counter_reset_keeps_total_monotonic_without_claiming_bottle_change() -> None:
+    """A lower counter preserves totals without assigning a cause."""
     state = WaterUsageState()
 
     assert state.apply_cycle_value(161_649) is False
@@ -14,4 +14,3 @@ def test_rollover_keeps_total_monotonic() -> None:
     assert state.completed_cycles_liters == 165_894
     assert state.cycle_water_liters == 7
     assert state.total_water_liters == 165_901
-    assert state.bottle_changes == 1

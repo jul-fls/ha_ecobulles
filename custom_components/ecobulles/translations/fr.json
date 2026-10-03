@@ -22,7 +22,8 @@
           "co2_min_dose_mg_per_l": "Dose CO2 minimale (mg/L)",
           "co2_max_dose_mg_per_l": "Dose CO2 maximale (mg/L)",
           "co2_reference_pulse_ms_per_l": "Impulsion CO2 de référence (ms/L)",
-          "poll_interval_seconds": "Intervalle de rafraîchissement (secondes)"
+          "poll_interval_seconds": "Intervalle de rafraîchissement (secondes)",
+          "bottle_empty_contact_value": "Valeur brute du contact signifiant que la bouteille CO2 est vide"
         },
         "sections": {
           "advanced_options": {
@@ -37,7 +38,8 @@
           "co2_min_dose_mg_per_l": "Estimation basse de la dose de CO2 injectée par litre d'eau.",
           "co2_max_dose_mg_per_l": "Estimation haute de la dose de CO2 injectée par litre d'eau.",
           "co2_reference_pulse_ms_per_l": "Temps d'ouverture attendu de l'électrovanne pour un litre d'eau. Ecobulles Expert est généralement à 1500 ms/L.",
-          "poll_interval_seconds": "Fréquence à laquelle Home Assistant interroge le cloud Ecobulles."
+          "poll_interval_seconds": "Fréquence à laquelle Home Assistant interroge le cloud Ecobulles.",
+          "bottle_empty_contact_value": "Facultatif. Choisissez 0 ou 1 seulement après avoir comparé l’attribut raw_contact_value avec l’écran Ecobulles. La polarité varie selon les installations ; sans réglage, le capteur bouteille vide reste indisponible plutôt que de deviner."
         }
       },
       "init": {
@@ -51,7 +53,8 @@
           "co2_min_dose_mg_per_l": "Dose CO2 minimale (mg/L)",
           "co2_max_dose_mg_per_l": "Dose CO2 maximale (mg/L)",
           "co2_reference_pulse_ms_per_l": "Impulsion CO2 de référence (ms/L)",
-          "poll_interval_seconds": "Intervalle de rafraîchissement (secondes)"
+          "poll_interval_seconds": "Intervalle de rafraîchissement (secondes)",
+          "bottle_empty_contact_value": "Valeur brute du contact signifiant que la bouteille CO2 est vide"
         },
         "sections": {
           "advanced_options": {
@@ -67,7 +70,8 @@
           "co2_min_dose_mg_per_l": "Estimation basse de la dose de CO2 injectée par litre d'eau.",
           "co2_max_dose_mg_per_l": "Estimation haute de la dose de CO2 injectée par litre d'eau.",
           "co2_reference_pulse_ms_per_l": "Temps d'ouverture attendu de l'électrovanne pour un litre d'eau. Ecobulles Expert est généralement à 1500 ms/L.",
-          "poll_interval_seconds": "Fréquence à laquelle Home Assistant interroge le cloud Ecobulles."
+          "poll_interval_seconds": "Fréquence à laquelle Home Assistant interroge le cloud Ecobulles.",
+          "bottle_empty_contact_value": "Facultatif. Choisissez 0 ou 1 seulement après avoir comparé l’attribut raw_contact_value avec l’écran Ecobulles. La polarité varie selon les installations ; sans réglage, le capteur bouteille vide reste indisponible plutôt que de deviner."
         }
       },
       "reauth_confirm": {
@@ -87,7 +91,8 @@
           "co2_min_dose_mg_per_l": "Dose CO2 minimale (mg/L)",
           "co2_max_dose_mg_per_l": "Dose CO2 maximale (mg/L)",
           "co2_reference_pulse_ms_per_l": "Impulsion CO2 de référence (ms/L)",
-          "poll_interval_seconds": "Intervalle de rafraîchissement (secondes)"
+          "poll_interval_seconds": "Intervalle de rafraîchissement (secondes)",
+          "bottle_empty_contact_value": "Valeur brute du contact signifiant que la bouteille CO2 est vide"
         },
         "description": "Modifiez les réglages Ecobulles de cet appareil."
       }
@@ -104,7 +109,7 @@
         "name": "Consommation d'eau"
       },
       "water_usage_completed_bottles": {
-        "name": "Consommation d'eau avant la bouteille de CO2 actuelle"
+        "name": "Consommation d'eau avant le segment de compteur actuel"
       },
       "water_usage_total": {
         "name": "Consommation d'eau totale"

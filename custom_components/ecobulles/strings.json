@@ -11,7 +11,8 @@
           "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
           "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
           "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)",
-          "poll_interval_seconds": "Polling interval (seconds)"
+          "poll_interval_seconds": "Polling interval (seconds)",
+          "bottle_empty_contact_value": "Raw contact value that means the CO2 bottle is empty"
         },
         "sections": {
           "advanced_options": {
@@ -26,7 +27,8 @@
           "co2_min_dose_mg_per_l": "Lower estimate of injected CO2 dose per liter of water.",
           "co2_max_dose_mg_per_l": "Upper estimate of injected CO2 dose per liter of water.",
           "co2_reference_pulse_ms_per_l": "Expected valve-open time for one liter of water. Ecobulles Expert is typically 1500 ms/L.",
-          "poll_interval_seconds": "How often Home Assistant asks the Ecobulles cloud for fresh data."
+          "poll_interval_seconds": "How often Home Assistant asks the Ecobulles cloud for fresh data.",
+          "bottle_empty_contact_value": "Optional. Set this to 0 or 1 only after comparing the raw_contact_value attribute with the Ecobulles display. Contact polarity varies between installations; if omitted, the bottle-empty sensor remains unavailable rather than guessing."
         }
       },
       "init": {
@@ -40,7 +42,8 @@
           "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
           "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
           "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)",
-          "poll_interval_seconds": "Polling interval (seconds)"
+          "poll_interval_seconds": "Polling interval (seconds)",
+          "bottle_empty_contact_value": "Raw contact value that means the CO2 bottle is empty"
         },
         "sections": {
           "advanced_options": {
@@ -56,7 +59,8 @@
           "co2_min_dose_mg_per_l": "Lower estimate of injected CO2 dose per liter of water.",
           "co2_max_dose_mg_per_l": "Upper estimate of injected CO2 dose per liter of water.",
           "co2_reference_pulse_ms_per_l": "Expected valve-open time for one liter of water. Ecobulles Expert is typically 1500 ms/L.",
-          "poll_interval_seconds": "How often Home Assistant asks the Ecobulles cloud for fresh data."
+          "poll_interval_seconds": "How often Home Assistant asks the Ecobulles cloud for fresh data.",
+          "bottle_empty_contact_value": "Optional. Set this to 0 or 1 only after comparing the raw_contact_value attribute with the Ecobulles display. Contact polarity varies between installations; if omitted, the bottle-empty sensor remains unavailable rather than guessing."
         }
       },
       "reauth_confirm": {
@@ -76,7 +80,8 @@
           "co2_min_dose_mg_per_l": "Minimum CO2 dose (mg/L)",
           "co2_max_dose_mg_per_l": "Maximum CO2 dose (mg/L)",
           "co2_reference_pulse_ms_per_l": "Reference CO2 pulse (ms/L)",
-          "poll_interval_seconds": "Polling interval (seconds)"
+          "poll_interval_seconds": "Polling interval (seconds)",
+          "bottle_empty_contact_value": "Raw contact value that means the CO2 bottle is empty"
         },
         "description": "Update Ecobulles settings for this device."
       }
@@ -104,7 +109,7 @@
         "name": "Water usage"
       },
       "water_usage_completed_bottles": {
-        "name": "Water usage before current CO2 bottle"
+        "name": "Water usage before current counter segment"
       },
       "water_usage_total": {
         "name": "Total water usage"

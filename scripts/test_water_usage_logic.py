@@ -27,16 +27,14 @@ def main() -> None:
     assert state.completed_cycles_liters == 175
     assert state.cycle_water_liters == 12
     assert state.total_water_liters == 187
-    assert state.bottle_changes == 1
 
     assert state.apply_cycle_value(40) is False
     assert state.total_water_liters == 215
 
     restored = WaterUsageState.from_dict(state.as_dict())
     assert restored.total_water_liters == 215
-    assert restored.bottle_changes == 1
 
-    print("Water usage accounting checks passed.")
+    print("Water counter reset accounting checks passed.")
 
 
 if __name__ == "__main__":

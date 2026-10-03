@@ -3,7 +3,11 @@
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 import pytest
 
-from custom_components.ecobulles.const import CONF_ENABLE_RAW_CO2_SENSOR, DOMAIN
+from custom_components.ecobulles.const import (
+    CONF_BOTTLE_EMPTY_CONTACT_VALUE,
+    CONF_ENABLE_RAW_CO2_SENSOR,
+    DOMAIN,
+)
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -21,6 +25,7 @@ def mock_config_entry() -> MockConfigEntry:
             "email": "test@example.com",
             "password": "test-password",
             "co2_bottle_weight": 10,
+            CONF_BOTTLE_EMPTY_CONTACT_VALUE: 0,
         },
         options={CONF_ENABLE_RAW_CO2_SENSOR: True},
     )

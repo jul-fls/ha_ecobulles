@@ -21,6 +21,7 @@ from homeassistant.exceptions import HomeAssistantError
 from .api import EcobullesClient
 
 from .const import (
+    CONF_BOTTLE_EMPTY_CONTACT_VALUE,
     CONF_CO2_BOTTLE_WEIGHT_KG,
     CONF_CO2_MAX_DOSE_MG_PER_L,
     CONF_CO2_MICROMETRIC_SCREW_SETTING,
@@ -38,6 +39,13 @@ ADVANCED_OPTIONS = "advanced_options"
 
 def _config_schema(defaults: dict[str, Any]) -> vol.Schema:
     """Return the Ecobulles setup/options schema."""
+    bottle_empty_contact_key = vol.Optional(CONF_BOTTLE_EMPTY_CONTACT_VALUE)
+    if defaults.get(CONF_BOTTLE_EMPTY_CONTACT_VALUE) in (0, 1):
+        bottle_empty_contact_key = vol.Optional(
+            CONF_BOTTLE_EMPTY_CONTACT_VALUE,
+            default=int(defaults[CONF_BOTTLE_EMPTY_CONTACT_VALUE]),
+        )
+
     return vol.Schema(
         {
             vol.Required(CONF_EMAIL, default=defaults.get(CONF_EMAIL, "")): str,
@@ -75,6 +83,7 @@ def _config_schema(defaults: dict[str, Any]) -> vol.Schema:
                             CONF_POLL_INTERVAL_SECONDS,
                             default=defaults.get(CONF_POLL_INTERVAL_SECONDS, 120),
                         ): vol.All(vol.Coerce(int), vol.Range(min=30)),
+                        bottle_empty_contact_key: vol.In([0, 1]),
                     }
                 ),
                 {"collapsed": True},
@@ -194,7 +203,8 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                     entry_data.pop("title", None)
 
                     account_key = (
-                        f"account_{info['user_id']}" if info.get("user_id")
+                        f"account_{info['user_id']}"
+                        if info.get("user_id")
                         else info["eco_ref"]
                     )
                     existing_entry = await self.async_set_unique_id(account_key)
@@ -202,7 +212,9 @@ class ConfigFlow(BaseConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                         existing_entry = next(
                             (
                                 entry
-                                for entry in self.hass.config_entries.async_entries(DOMAIN)
+                                for entry in self.hass.config_entries.async_entries(
+                                    DOMAIN
+                                )
                                 if _same_account(info, entry)
                             ),
                             None,
